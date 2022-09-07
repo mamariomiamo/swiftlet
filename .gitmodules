@@ -1,0 +1,9 @@
+[submodule "tools/mockamap"]
+	path = tools/mockamap
+	url = git@github.com:mamariomiamo/mockamap.git
+[submodule "sim_tools/mockamap"]
+	path = sim_tools/mockamap
+	url = git@github.com:mamariomiamo/mockamap.git
+[submodule "sim_tools/rviz_plugin"]
+	path = sim_tools/rviz_plugin
+	url = git@github.com:mamariomiamo/rviz_plugin.git
