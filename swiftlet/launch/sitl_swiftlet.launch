@@ -25,12 +25,14 @@
     <!-- drone0 -->
     <group ns="drone0">
         <!-- MAVROS and vehicle configs -->
+        <!-- position in NWU -->
         <arg name="ID" value="0" />
         <arg name="fcu_url" default="udp://:14540@localhost:14580" />
         <arg name="xid" value="drone0" />
-        <arg name="x" value="0" />
+        <arg name="x" value="-10" />
         <arg name="y" value="0" />
         <arg name="z" value="0" />
+
 
         <!-- PX4 SITL and vehicle spawn -->
         <!-- enu frame -->
@@ -40,7 +42,7 @@
             <arg name="z" value="$(arg z)" />
             <arg name="R" value="0" />
             <arg name="P" value="0" />
-            <arg name="Y" value="0" />
+            <arg name="Y" value="1.5708" />
             <arg name="vehicle" value="$(arg vehicle)" />
             <arg name="mavlink_udp_port" value="14560" />
             <arg name="mavlink_tcp_port" value="4560" />
@@ -69,6 +71,7 @@
             type="static_transform_publisher"
             name="global_to_local"
             args="$(arg x) $(arg y) $(arg z) 0.0 0.0 -0.7071068 0.7071068 /map /drone0_local_enu_origin" />
+        <!-- rotation part should be kept the same since it described the rotation from nwu to enu -->
 
     </group>
 
@@ -79,10 +82,17 @@
 
 
     <!-- mockamap -->
-    <include file="$(find swiftlet)/launch/swiftlet_mockamap.launch">
-    </include>
+    <!-- <include file="$(find swiftlet)/launch/swiftlet_mockamap.launch"></include> -->
+    <include file="$(find swiftlet)/launch/map_gen.launch"></include>
 
     <!-- lidar sim -->
-    <include file="$(find swiftlet)/launch/swiftlet_lidar_sim.launch">
-    </include>
+    <include file="$(find swiftlet)/launch/swiftlet_lidar_sim.launch"></include>
+
+    <!-- <arg name="odom_topic" value="/drone0/global_nwu_odom" />
+    <arg name="cloud_topic" value="/laser_simulator/local_pointcloud" />
+
+    <include file="$(find swiftlet)/launch/sitl_occupancy.launch">
+        <arg name="odometry_topic" value="$(arg odom_topic)" />
+        <arg name="point_cloud_topic" value="$(arg cloud_topic)" />
+    </include> -->
 </launch>

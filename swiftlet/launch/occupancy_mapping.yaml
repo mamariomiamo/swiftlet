@@ -1,6 +1,5 @@
 # change to your own map topic
-# map_topic:                          '/mock_map'
-map_topic:                          '/map_generator/global_cloud'
+map_topic:                          '/mock_map'
 
 # change to your own odom topic
 # odom_topic:                         '/drone0/mavros/local_position/odom'
