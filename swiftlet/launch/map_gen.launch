@@ -9,7 +9,7 @@
         <param name="map/z_size"     value="3" />
         <param name="map/resolution" value="0.1"/>
         <param name="ObstacleShape/seed" value="1"/>
-        <param name="map/obs_num"    value="10"/>
+        <param name="map/obs_num"    value="30"/>
 
         <!-- distribution bound for pillar radius -->
         <param name="ObstacleShape/lower_rad" value="1.5"/>

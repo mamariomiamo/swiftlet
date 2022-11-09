@@ -10,6 +10,7 @@
 [submodule "sim_tools/laser_simulator"]
 	path = sim_tools/laser_simulator
 	url = git@github.com:mamariomiamo/laser_simulator.git
+	branch = main
 [submodule "planner/offb_pkg"]
 	path = planner/offb_pkg
 	url = git@github.com:mamariomiamo/offb_pkg.git
@@ -19,6 +20,7 @@
 [submodule "planner/trajectory_publisher"]
 	path = planner/trajectory_publisher
 	url = git@github.com:mamariomiamo/trajectory_publisher.git
+	branch = main
 [submodule "sim_tools/map_gen"]
 	path = sim_tools/map_gen
 	url = git@github.com:mamariomiamo/map_gen.git

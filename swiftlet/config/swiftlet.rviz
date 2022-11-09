@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /TF1/Frames1
         - /octomap point cloud centre1
+        - /local occupancy inflated1
       Splitter Ratio: 0.6213017702102661
     Tree Height: 1557
   - Class: rviz/Selection
@@ -26,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: local_cloud
+    SyncSource: map_generator global map
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -185,8 +186,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.187835931777954
-        Min Value: -1.0580394268035889
+        Max Value: 3.074044704437256
+        Min Value: -1.070389986038208
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -251,7 +252,7 @@ Visualization Manager:
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 3.049999952316284
-        Min Value: -1.0499999523162842
+        Min Value: -0.6499999761581421
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -259,7 +260,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -271,6 +272,42 @@ Visualization Manager:
       Size (m): 0.10000000149011612
       Style: Boxes
       Topic: /octomap_point_cloud_centers
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /occupied_cells_vis_array
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 3.1500000953674316
+        Min Value: -1.149999976158142
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: local occupancy inflated
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.10000000149011612
+      Style: Boxes
+      Topic: /occupancy_mapping/grid_map/occupancy_inflate
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -310,7 +347,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 60.92313003540039
+      Distance: 39.09623336791992
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -318,17 +355,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -6.677224636077881
-        Y: -1.5787755250930786
-        Z: 3.49824857711792
+        X: -5.038056373596191
+        Y: -1.5655179023742676
+        Z: 3.19488787651062
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.0947967767715454
+      Pitch: 1.4897964000701904
       Target Frame: <Fixed Frame>
-      Yaw: 2.9353883266448975
+      Yaw: 3.185389280319214
     Saved: ~
 Window Geometry:
   Displays:

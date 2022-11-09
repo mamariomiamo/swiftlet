@@ -10,7 +10,7 @@ odom_topic: '/drone0/global_nwu_odom'
 laser_pcd_topic:                    'local_pointcloud'
 
 # in meters
-sensing_horizon:                    8.0
+sensing_horizon:                    30.0
 
 # in Hz
 sensing_rate:                       10.0
