@@ -3,6 +3,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/MarkerArray.h>
 enum ASTAR_RET
 {
   SUCCESS,
@@ -75,7 +76,7 @@ void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
 
 void initGridMap(GridMap::Ptr grid_map, const Eigen::Vector3i &map_size);
 
-ASTAR_RET AStarSearch(const double step_size, const Eigen::Vector3d &start, const Eigen::Vector3d &goal);
+ASTAR_RET AStarSearch(const double step_size, const Eigen::Vector3d &start, const Eigen::Vector3d &goal, GridNodePtr &ret_node);
 
 bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, Eigen::Vector3i &start_idx, Eigen::Vector3i &end_idx);
 
@@ -89,6 +90,8 @@ double getDiagHeu(GridNodePtr node1, GridNodePtr node2);
 
 double getHeu(GridNodePtr node1, GridNodePtr node2);
 
+void retrivePath(const GridNodePtr &ret_node, std::vector<Eigen::Vector3d> &path_list);
+
 int main(int argc, char **argv)
 {
 
@@ -96,31 +99,42 @@ int main(int argc, char **argv)
   ros::NodeHandle nh("~");
 
   // calling on GridMap class to generate inflated occupancy map
+  ros::Time time_1 = ros::Time::now();
   GridMap::Ptr grid_map_;
   grid_map_.reset(new GridMap);
   grid_map_->initMap(nh);
   ros::Duration(1.0).sleep();
+  ros::Time time_2 = ros::Time::now();
 
   // initialize gridmap for A* search
-  Eigen::Vector3i map_size{300, 300, 300}; // what is the resolution of the map?
+  Eigen::Vector3i map_size{100, 100, 100}; // what is the resolution of the map?
   initGridMap(grid_map_, map_size);
+  ros::Time time_3 = ros::Time::now();
+
+  std::cout << "grid map init used: " << (time_2 - time_1).toSec() << std::endl;
+  std::cout << "astar GridNodeMap_ init used: " << (time_3 - time_2).toSec() << std::endl;
+
 
   double step_size = grid_map_->getResolution();
 
   ros::Subscriber pose_nwu_sub_ = nh.subscribe("/drone0/global_nwu", 10, poseCallback);
   ros::Subscriber target_nwu_sub_ = nh.subscribe("/goal", 10, targetCallback);
+  ros::Publisher vis_pub = nh.advertise<visualization_msgs::MarkerArray>("Astar_node", 0);
   // ros::spin();
 
-  ros::Rate rate(100);
+  ros::Rate rate(20);
   bool status = ros::ok();
+  GridNodePtr ret_node;
+  std::vector<Eigen::Vector3d> path_list;
   while (status)
   {
     ros::spinOnce();
     status = ros::ok();
     if (require_planning)
     {
+      std::cout << "required planning" << std::endl;
       ros::Time time_1 = ros::Time::now();
-      ASTAR_RET ret = AStarSearch(step_size, current_pos, target_pos);
+      ASTAR_RET ret = AStarSearch(step_size, current_pos, target_pos, ret_node);
       ros::Time time_2 = ros::Time::now();
 
       require_planning = false;
@@ -129,6 +143,37 @@ int main(int argc, char **argv)
       {
         std::cout << " Search Success " << std::endl;
         std::cout << "Used: " << (time_2 - time_1).toSec() << " seconds" << std::endl;
+        retrivePath(ret_node, path_list);
+        visualization_msgs::MarkerArray astar_nodes;
+        int array_size = path_list.size();
+        astar_nodes.markers.resize(array_size);
+        path_list.clear();
+        path_list.emplace_back(current_pos);
+        path_list.emplace_back(target_pos);
+
+        for (int i = 0; i < 2; i++)
+        {
+          astar_nodes.markers[i].header.frame_id = "/map";
+          astar_nodes.markers[i].header.stamp = ros::Time::now();
+          astar_nodes.markers[i].id = i;
+          astar_nodes.markers[i].type = visualization_msgs::Marker::SPHERE;
+          astar_nodes.markers[i].action = visualization_msgs::Marker::ADD;
+          astar_nodes.markers[i].pose.position.x = path_list[i].x();
+          astar_nodes.markers[i].pose.position.y = path_list[i].y();
+          astar_nodes.markers[i].pose.position.z = path_list[i].z();
+          astar_nodes.markers[i].pose.orientation.x = 0.0;
+          astar_nodes.markers[i].pose.orientation.y = 0.0;
+          astar_nodes.markers[i].pose.orientation.z = 0.0;
+          astar_nodes.markers[i].pose.orientation.w = 1.0;
+          astar_nodes.markers[i].scale.x = 1;
+          astar_nodes.markers[i].scale.y = 0.1;
+          astar_nodes.markers[i].scale.z = 0.1;
+          astar_nodes.markers[i].color.a = 1.0; // Don't forget to set the alpha!
+          astar_nodes.markers[i].color.r = 0.0;
+          astar_nodes.markers[i].color.g = 1.0;
+          astar_nodes.markers[i].color.b = 0.0;
+        }
+        vis_pub.publish(astar_nodes);
       }
 
       else if (ret == ASTAR_RET::SEARCH_ERR)
@@ -164,7 +209,7 @@ void initGridMap(GridMap::Ptr grid_map, const Eigen::Vector3i &map_size)
   astar_grid_map_ = grid_map;
 }
 
-ASTAR_RET AStarSearch(const double step_size, const Eigen::Vector3d &start, const Eigen::Vector3d &goal)
+ASTAR_RET AStarSearch(const double step_size, const Eigen::Vector3d &start, const Eigen::Vector3d &goal, GridNodePtr &ret_node)
 {
   ros::Time time_1 = ros::Time::now();
   std::cout << "Conducting search" << std::endl;
@@ -219,6 +264,7 @@ ASTAR_RET AStarSearch(const double step_size, const Eigen::Vector3d &start, cons
       // if((time_2 - time_1).toSec() > 0.1)
       //     ROS_WARN("Time consume in A star path finding is %f", (time_2 - time_1).toSec() );
       // gridPath_ = retrievePath(current);
+      ret_node = current;
       return ASTAR_RET::SUCCESS;
     }
 
@@ -309,7 +355,7 @@ bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vect
     ROS_WARN("Start point is insdide an obstacle.");
     do
     {
-      start_pt = (start_pt - end_pt).normalized() * step_size_ + start_pt;
+      start_pt = (start_pt - end_pt).normalized() * step_size_ + start_pt; // vector from end to start
       // cout << "start_pt=" << start_pt.transpose() << endl;
       if (!Coord2Index(start_pt, start_idx))
       {
@@ -330,7 +376,7 @@ bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vect
     ROS_WARN("End point is insdide an obstacle.");
     do
     {
-      end_pt = (end_pt - start_pt).normalized() * step_size_ + end_pt;
+      end_pt = (end_pt - start_pt).normalized() * step_size_ + end_pt; // vector from start to end
       // cout << "end_pt=" << end_pt.transpose() << endl;
       if (!Coord2Index(end_pt, end_idx))
       {
@@ -401,4 +447,16 @@ double getDiagHeu(GridNodePtr node1, GridNodePtr node2)
 double getHeu(GridNodePtr node1, GridNodePtr node2)
 {
   return tie_breaker_ * getDiagHeu(node1, node2);
+}
+
+void retrivePath(const GridNodePtr &ret_node, std::vector<Eigen::Vector3d> &path_list)
+{
+  GridNodePtr temp = ret_node;
+  while (temp->parent != nullptr)
+  {
+    path_list.emplace_back(Index2Coord(temp->index));
+    temp = temp->parent;
+  }
+
+  reverse(path_list.begin(), path_list.end());
 }
