@@ -287,7 +287,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 3.1500000953674316
+        Max Value: 3.25
         Min Value: -1.149999976158142
         Value: true
       Axis: Z
@@ -311,6 +311,14 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /occupancy_mapping/Astar_node
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -355,9 +363,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -5.038056373596191
-        Y: -1.5655179023742676
-        Z: 3.19488787651062
+        X: -5.774394512176514
+        Y: -7.355821132659912
+        Z: 3.114591360092163
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -383,5 +391,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 2752
-  X: 0
+  X: 2752
   Y: 54
