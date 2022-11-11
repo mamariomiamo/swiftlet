@@ -21,7 +21,8 @@ catkin_package(
 )
 
 include_directories(
-    ${catkin_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include
+    ${catkin_INCLUDE_DIRS} 
+    ${PROJECT_SOURCE_DIR}/include
     ${EIGEN3_INCLUDE_DIR}
     ${PCL_INCLUDE_DIRS}
     ${OCTOMAP_INCLUDE_DIRS}
@@ -29,6 +30,7 @@ include_directories(
 
 add_executable(mapping
   src/mapping.cpp
+  src/graph_search.cpp
   )
 
 target_link_libraries(mapping 
