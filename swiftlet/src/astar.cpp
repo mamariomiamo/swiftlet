@@ -492,9 +492,9 @@ bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vect
 
 bool Coord2Index(const Eigen::Vector3d &pt, Eigen::Vector3i &idx)
 {
-  std::cout << "Position " << pt.transpose() << std::endl;
   idx = ((pt - center_) * inv_step_size_ + Eigen::Vector3d(0.5, 0.5, 0.5)).cast<int>() + CENTER_IDX_;
-
+              std::cout << "coord2index: " << idx.transpose() << std::endl;
+            std::cout << "pos: " << pt.transpose() << std::endl;
   // if (idx(0) < 0 || idx(0) >= POOL_SIZE_(0) || idx(1) < 0 || idx(1) >= POOL_SIZE_(1) || idx(2) < 0 || idx(2) >= POOL_SIZE_(2))
   // {
   //   ROS_ERROR("center in dex is =%d %d %d", CENTER_IDX_(0), CENTER_IDX_(1), CENTER_IDX_(2));

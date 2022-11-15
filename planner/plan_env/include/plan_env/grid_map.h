@@ -373,7 +373,7 @@ inline int GridMap::getInflateOccupancy(Eigen::Vector3d pos)
 {
   if (!isInInfBuf(pos))
   {
-      std::cout << "not in buffer" << std::endl;
+      // std::cout << "not in buffer" << std::endl;
       return 0;
   }
     

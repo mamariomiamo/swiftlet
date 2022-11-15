@@ -1,16 +1,28 @@
 #include <graph_search.h>
 namespace GraphSearch
 {
+    constexpr int JPS3DNeib::nsz[4][2]; // definition
 
-    GraphSearch::GraphSearch(int map_size, int map_resolution, bool use_jps)
+    GraphSearch::GraphSearch(int map_size, double map_resolution, bool use_jps)
         : map_resolution_(map_resolution), use_jps_(use_jps)
     {
+
         map_resolution_inverse_ = 1 / map_resolution_;
         map_size_ << map_size, map_size, map_size;
         pool_size_ = map_size_;
         center_index_ = pool_size_ / 2;
         current_search_round_ = 0;
+        std::cout << "map_resolution_ " << map_resolution_ << std::endl;
+        std::cout << "map_resolution_inverse_ " << map_resolution_inverse_ << std::endl;
+        std::cout << "map_size_ " << map_size_.transpose() << std::endl;
+        std::cout << "pool_size_ " << pool_size_.transpose() << std::endl;
         initGridMap();
+        std::cout << "graph searcher initialized " << std::endl;
+
+        if (use_jps)
+        {
+            std::cout << "Using JPS instead of A*" << std::endl;
+        }
     }
 
     GraphSearch::~GraphSearch()
@@ -41,7 +53,6 @@ namespace GraphSearch
     {
         GridNodePtr temp = ret_node_;
         path_list.emplace_back(Index2Coord(temp->index));
-
         while (temp->parent != nullptr)
         {
             temp = temp->parent;
@@ -66,7 +77,7 @@ namespace GraphSearch
             sub_goal_ = goal;
         }
 
-        center_ = (sub_goal_ - goal) / 2;
+        center_ = (sub_goal_ + start) / 2;
 
         Eigen::Vector3i start_index, goal_index;
         if (!ConvertToIndexAndAdjustStartEndPoints(start, sub_goal_, start_index, goal_index))
@@ -87,10 +98,14 @@ namespace GraphSearch
         start_node->f_cost = start_node->h_cost;
         start_node->parent = nullptr;
         start_node->state = NodeState::OPENLIST;
+        start_node->query_rounds = current_search_round_; // remember to update start_node's query round
         pq.push(start_node);
 
         GridNodePtr current_node = nullptr;
+
         ros::Time time_1 = ros::Time::now();
+        vector<GridNodePtr> neighborPtrSets;
+        vector<double> edgeCostSets;
         while (!pq.empty())
         {
             current_node = pq.top();
@@ -102,11 +117,13 @@ namespace GraphSearch
                 ros::Time time_2 = ros::Time::now();
                 double time_lapse = (time_2 - time_1).toSec();
                 std::cout << "path found in: " << time_lapse << " seconds." << std::endl;
-                ret_node_ = goal_node;
+                ret_node_ = current_node;
                 return SearchResult::SUCCESS_SUB;
             }
 
             current_node->state = NodeState::CLOSELIST;
+            GridNodePtr neighborPtr = nullptr;
+            double tentative_gScore;
             getSuccessorNode(current_node, goal_node);
 
             ros::Time time_2 = ros::Time::now();
@@ -119,10 +136,8 @@ namespace GraphSearch
         }
     }
 
-        bool GraphSearch::ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, Eigen::Vector3i &start_idx, Eigen::Vector3i &end_idx)
+    bool GraphSearch::ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, Eigen::Vector3i &start_idx, Eigen::Vector3i &end_idx)
     {
-        std::cout << "start point: " << start_pt.transpose() << std::endl;
-        std::cout << "end_pt: " << end_pt.transpose() << std::endl;
         if (!Coord2Index(start_pt, start_idx) || !Coord2Index(end_pt, end_idx))
             return false;
 
@@ -174,6 +189,7 @@ namespace GraphSearch
 
     void GraphSearch::getSuccessorNode(const GridNodePtr &current_node, const GridNodePtr &goal_node)
     {
+        // std::cout << "A* get successor node" << std::endl;
         GridNodePtr neighbor_node = nullptr;
         Eigen::Vector3i neighbor_index;
         for (int dx = -1; dx <= 1; dx++)
@@ -237,5 +253,256 @@ namespace GraphSearch
                     }
                 }
     }
+
+    void JPS::getSuccessorNode(const GridNodePtr &current_node, const GridNodePtr &goal_node)
+    {
+        std::cout << "JPS get successor node" << std::endl;
+        goalIdx = goal_node->index;
+        const int norm1 = abs(current_node->dir(0)) + abs(current_node->dir(1)) + abs(current_node->dir(2));
+
+        int num_neib = jn3d->nsz[norm1][0];
+        int num_fneib = jn3d->nsz[norm1][1];
+        int id = (current_node->dir(0) + 1) + 3 * (current_node->dir(1) + 1) + 9 * (current_node->dir(2) + 1);
+        std::cout << "entering loop" << std::endl;
+        std::cout << "num_neib " << num_neib << std::endl;
+        std::cout << "num_fneib " << num_fneib << std::endl;
+        for (int dev = 0; dev < num_neib + num_fneib; ++dev)
+        {
+            Eigen::Vector3i neighborIdx;
+            Eigen::Vector3i expandDir;
+
+            if (dev < num_neib)
+            {
+                expandDir(0) = jn3d->ns[id][0][dev];
+                expandDir(1) = jn3d->ns[id][1][dev];
+                expandDir(2) = jn3d->ns[id][2][dev];
+
+                if (!jump(current_node->index, expandDir, neighborIdx))
+                    continue;
+            }
+            else
+            {
+                int nx = current_node->index(0) + jn3d->f1[id][0][dev - num_neib];
+                int ny = current_node->index(1) + jn3d->f1[id][1][dev - num_neib];
+                int nz = current_node->index(2) + jn3d->f1[id][2][dev - num_neib];
+
+                if (checkOccupancy(Index2Coord(Eigen::Vector3i(nx, ny, nz))))
+                {
+                    expandDir(0) = jn3d->f2[id][0][dev - num_neib];
+                    expandDir(1) = jn3d->f2[id][1][dev - num_neib];
+                    expandDir(2) = jn3d->f2[id][2][dev - num_neib];
+
+                    if (!jump(current_node->index, expandDir, neighborIdx))
+                        continue;
+                }
+                else
+                    continue;
+            }
+
+            std::cout << "intereseing node" << std::endl;
+
+            GridNodePtr neighbor_node = GridMap_[voxelIndex2vectIndex(neighborIdx)];
+            neighbor_node->dir = expandDir;
+            neighbor_node->index = neighborIdx;
+            // check if the node has been queried in this round
+            bool explored = neighbor_node->query_rounds == current_search_round_;
+
+            // if the node has been queried AND node is in close list, we skip it
+            if (explored && neighbor_node->state == NodeState::CLOSELIST)
+            {
+                continue;
+            }
+
+            // update node's query round
+            neighbor_node->query_rounds = current_search_round_;
+
+            // check if node is occupied
+            if (checkOccupancy(Index2Coord(neighbor_node->index)))
+            {
+                continue;
+            }
+
+            double edge_cost = sqrt(
+                (neighborIdx(0) - current_node->index(0)) * (neighborIdx(0) - current_node->index(0)) +
+                (neighborIdx(1) - current_node->index(1)) * (neighborIdx(1) - current_node->index(1)) +
+                (neighborIdx(2) - current_node->index(2)) * (neighborIdx(2) - current_node->index(2)));
+
+            double neighbor_g_temp = current_node->g_cost + edge_cost;
+
+            if (!explored)
+            {
+                neighbor_node->parent = current_node;
+                neighbor_node->h_cost = getHeuristic(neighbor_node, goal_node);
+                neighbor_node->g_cost = neighbor_g_temp;
+                neighbor_node->f_cost = neighbor_g_temp + neighbor_node->h_cost;
+                neighbor_node->state = NodeState::OPENLIST;
+                pq.push(neighbor_node);
+                std::cout << "pushed node" << std::endl; // zt
+            }
+
+            else if (neighbor_node->g_cost > neighbor_g_temp)
+            {
+                // check if the g_cost will be lower if we choose current_node as parent of neighbor_node
+                neighbor_node->parent = current_node;
+                neighbor_node->g_cost = neighbor_g_temp;
+                neighbor_node->f_cost = neighbor_g_temp + neighbor_node->h_cost;
+
+                // if change its parents, update the expanding direction
+                for (int i = 0; i < 3; i++)
+                {
+                    neighbor_node->dir(i) = neighbor_node->index(i) - current_node->index(i);
+                    if (neighbor_node->dir(i) != 0)
+                        neighbor_node->dir(i) /= abs(neighbor_node->dir(i));
+                }
+            }
+        }
+
+        std::cout << "done getting successor" << std::endl; // zt
+    }
+
+    inline bool JPS::hasForced(const Eigen::Vector3i &idx, const Eigen::Vector3i &dir)
+    {
+        int norm1 = abs(dir(0)) + abs(dir(1)) + abs(dir(2));
+        int id = (dir(0) + 1) + 3 * (dir(1) + 1) + 9 * (dir(2) + 1);
+
+        switch (norm1)
+        {
+        case 1:
+            // 1-d move, check 8 neighbors
+            for (int fn = 0; fn < 8; ++fn)
+            {
+                int nx = idx(0) + jn3d->f1[id][0][fn];
+                int ny = idx(1) + jn3d->f1[id][1][fn];
+                int nz = idx(2) + jn3d->f1[id][2][fn];
+                if (checkOccupancy(Index2Coord(Eigen::Vector3i(nx, ny, nz))))
+                    return true;
+            }
+            return false;
+
+        case 2:
+            // 2-d move, check 8 neighbors
+            for (int fn = 0; fn < 8; ++fn)
+            {
+                int nx = idx(0) + jn3d->f1[id][0][fn];
+                int ny = idx(1) + jn3d->f1[id][1][fn];
+                int nz = idx(2) + jn3d->f1[id][2][fn];
+                if (checkOccupancy(Index2Coord(Eigen::Vector3i(nx, ny, nz))))
+                    return true;
+            }
+            return false;
+
+        case 3:
+            // 3-d move, check 6 neighbors
+            for (int fn = 0; fn < 6; ++fn)
+            {
+                int nx = idx(0) + jn3d->f1[id][0][fn];
+                int ny = idx(1) + jn3d->f1[id][1][fn];
+                int nz = idx(2) + jn3d->f1[id][2][fn];
+                if (checkOccupancy(Index2Coord(Eigen::Vector3i(nx, ny, nz))))
+                    return true;
+            }
+            return false;
+
+        default:
+            return false;
+        }
+    }
+
+    bool JPS::jump(const Eigen::Vector3i &curIdx, const Eigen::Vector3i &expDir, Eigen::Vector3i &neiIdx)
+    {
+        neiIdx = curIdx + expDir;
+        // std::cout << "in jump" << std::endl;
+        // std::cout << "goalIdx " << goalIdx.transpose() << std::endl;
+        // std::cout << "neiIdx " << neiIdx.transpose() << std::endl;
+        // std::cout << "expDir " << expDir.transpose() << std::endl;
+
+        if (checkOccupancy(Index2Coord(Eigen::Vector3i(neiIdx))))
+        {
+            std::cout << "occupied" << std::endl;
+            return false;
+        }
+
+        if (neiIdx == goalIdx)
+        {
+            std::cout << "reached goal" << std::endl;
+            return true;
+        }
+
+        if (hasForced(neiIdx, expDir))
+        {
+            std::cout << "have forced neighbour" << std::endl;
+            return true;
+        }
+
+        const int id = (expDir(0) + 1) + 3 * (expDir(1) + 1) + 9 * (expDir(2) + 1);
+        const int norm1 = abs(expDir(0)) + abs(expDir(1)) + abs(expDir(2));
+        int num_neib = jn3d->nsz[norm1][0];
+
+        for (int k = 0; k < num_neib - 1; ++k)
+        {
+            Eigen::Vector3i newNeiIdx;
+            Eigen::Vector3i newDir(jn3d->ns[id][0][k], jn3d->ns[id][1][k], jn3d->ns[id][2][k]);
+            std::cout << "newDir " << newDir.transpose() << std::endl;
+            if (jump(neiIdx, newDir, newNeiIdx))
+                return true;
+        }
+        // std::cout << "before return" << std::endl;
+        return jump(neiIdx, expDir, neiIdx);
+    }
+
+    // inline void JPS::JPSGetSucc(GridNodePtr currentPtr, vector<GridNodePtr> &neighborPtrSets, vector<double> &edgeCostSets, Eigen::Vector3i &goalIdx)
+    // {
+    //     neighborPtrSets.clear();
+    //     edgeCostSets.clear();
+    //     const int norm1 = abs(currentPtr->dir(0)) + abs(currentPtr->dir(1)) + abs(currentPtr->dir(2));
+
+    //     int num_neib = jn3d->nsz[norm1][0];
+    //     int num_fneib = jn3d->nsz[norm1][1];
+    //     int id = (currentPtr->dir(0) + 1) + 3 * (currentPtr->dir(1) + 1) + 9 * (currentPtr->dir(2) + 1);
+
+    //     for (int dev = 0; dev < num_neib + num_fneib; ++dev)
+    //     {
+    //         Eigen::Vector3i neighborIdx;
+    //         Eigen::Vector3i expandDir;
+
+    //         if (dev < num_neib)
+    //         {
+    //             expandDir(0) = jn3d->ns[id][0][dev];
+    //             expandDir(1) = jn3d->ns[id][1][dev];
+    //             expandDir(2) = jn3d->ns[id][2][dev];
+
+    //             if (!jump(currentPtr->index, expandDir, neighborIdx, goalIdx))
+    //                 continue;
+    //         }
+    //         else
+    //         {
+    //             int nx = currentPtr->index(0) + jn3d->f1[id][0][dev - num_neib];
+    //             int ny = currentPtr->index(1) + jn3d->f1[id][1][dev - num_neib];
+    //             int nz = currentPtr->index(2) + jn3d->f1[id][2][dev - num_neib];
+
+    //             if (checkOccupancy(Index2Coord(Eigen::Vector3i(nx, ny, nz))))
+    //             {
+    //                 expandDir(0) = jn3d->f2[id][0][dev - num_neib];
+    //                 expandDir(1) = jn3d->f2[id][1][dev - num_neib];
+    //                 expandDir(2) = jn3d->f2[id][2][dev - num_neib];
+
+    //                 if (!jump(currentPtr->index, expandDir, neighborIdx, goalIdx))
+    //                     continue;
+    //             }
+    //             else
+    //                 continue;
+    //         }
+
+    //         GridNodePtr nodePtr = GridMap_[neighborIdx(0)][neighborIdx(1)][neighborIdx(2)];
+    //         nodePtr->dir = expandDir;
+
+    //         neighborPtrSets.push_back(nodePtr);
+    //         edgeCostSets.push_back(
+    //             sqrt(
+    //                 (neighborIdx(0) - currentPtr->index(0)) * (neighborIdx(0) - currentPtr->index(0)) +
+    //                 (neighborIdx(1) - currentPtr->index(1)) * (neighborIdx(1) - currentPtr->index(1)) +
+    //                 (neighborIdx(2) - currentPtr->index(2)) * (neighborIdx(2) - currentPtr->index(2))));
+    //     }
+    // }
 
 }; // namespace GraphSearch

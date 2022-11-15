@@ -1,9 +1,10 @@
 <launch>
     <!-- grid map size for a star search in meter -->
     <arg name="astar_map_size" value="100"/>
+    <arg name="test_jps" value="true"/>
     <arg name="map_size_x_" value="200.0"/>
     <arg name="map_size_y_" value="200.0"/>
-    <arg name="map_size_z_" value=" 3.0"/>
+    <arg name="map_size_z_" value="3.0"/>
     <!-- <arg name="odometry_topic" value="$(arg odom_topic)" /> -->
     <!-- camera pose: transform of camera frame in the world frame -->
     <!-- depth topic: depth image, 640x480 by default -->
@@ -21,6 +22,7 @@
     <arg name="fy" value="387.229248046875" />
     <node pkg="swiftlet" type="mapping" name="occupancy_mapping" output="screen">
         <param name="astar_map_size" value="$(arg astar_map_size)"/>
+        <param name="test_jps" value="$(arg test_jps)"/>
         <!-- <rosparam file="$(find swiftlet)/launch/occupancy_mapping.yaml" command="load" /> -->
         <remap from="~grid_map/odom" to="$(arg odometry_topic)" />
         <remap from="~grid_map/cloud" to="$(arg point_cloud_topic)" />
