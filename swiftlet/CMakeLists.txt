@@ -3,7 +3,7 @@ project(swiftlet)
 
 
 find_package(Eigen3 REQUIRED)
-find_package(PCL 1.7 REQUIRED)
+find_package(PCL 1.7 REQUIRED COMPONENTS common octree filters)
 find_package(octomap REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -31,6 +31,7 @@ include_directories(
 add_executable(mapping
   src/mapping.cpp
   src/graph_search.cpp
+  src/corridor_gen.cpp
   )
 
 target_link_libraries(mapping 
