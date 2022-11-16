@@ -79,48 +79,26 @@ int main(int argc, char **argv)
 
   std::vector<Eigen::Vector3d> path_list;
   std::vector<Eigen::Vector3d> prev_path;
-  std::vector<Eigen::Vector3d> path_list_jps;
-  std::vector<Eigen::Vector3d> prev_path_jps;
+
   while (ros::ok())
   {
     if (require_planning)
     {
-      GraphSearch::SearchResult ret1 = gs->search(current_pos, target_pos);
+      GraphSearch::SearchResult ret = gs->search(current_pos, target_pos);
       std::cout << "A star finished" << std::endl;
-      // GraphSearch::SearchResult ret1 = jps->search(current_pos, target_pos);
 
-      // switch (ret)
-      // {
-      // case GraphSearch::SearchResult::SUCCESS_SUB:
-      // {
-      //   std::cout << "success" << std::endl;
-      //   path_list.clear();
-
-      //   gs->getPath(path_list);
-      //   // std::cout << " size of path list " << path_list.size() << std::endl;
-      //   deletePrePath(prev_path, &vis_pub);
-      //   publishPath(path_list, &vis_pub, gs->useJPS());
-      //   prev_path.swap(path_list);
-      //   require_planning = false;
-      //   break;
-      // }
-
-      // default:
-      //   break;
-      // }
-
-      switch (ret1)
+      switch (ret)
       {
       case GraphSearch::SearchResult::SUCCESS_SUB:
       {
-        std::cout << "JPS success" << std::endl;
-        path_list_jps.clear();
+        std::cout << "success" << std::endl;
+        path_list.clear();
 
-        gs->getPath(path_list_jps);
+        gs->getPath(path_list);
         // std::cout << " size of path list " << path_list.size() << std::endl;
-        deletePrePath(prev_path_jps, &vis_pub);
-        publishPath(path_list_jps, &vis_pub, gs->useJPS());
-        prev_path_jps.swap(path_list_jps);
+        deletePrePath(prev_path, &vis_pub);
+        publishPath(path_list, &vis_pub, gs->useJPS());
+        prev_path.swap(path_list);
         require_planning = false;
         break;
       }
