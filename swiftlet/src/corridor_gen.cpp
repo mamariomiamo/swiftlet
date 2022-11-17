@@ -1,12 +1,11 @@
 #include <corridor_gen.h>
 
 using namespace CorridorGen;
-CorridorGenerator::CorridorGenerator(double res)
-    : resolution(res)
+CorridorGenerator::CorridorGenerator(double resolution, double clearance)
+    : resolution_(resolution), clearance_(clearance)
 {
     octree_.deleteTree();
-    octree_.setResolution(resolution);
-
+    octree_.setResolution(resolution_);
 }
 
 void CorridorGenerator::updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud)
@@ -56,15 +55,27 @@ Corridor CorridorGenerator::GenerateOneSphere(const Eigen::Vector3d &pos)
     searchPoint.y = pos.y();
     searchPoint.z = pos.z();
 
-     // consider using radiusSearch?
-    if (octree_.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointIdxNKNSearch) > 0)
+    // consider using radiusSearch?
+    if (octree_.nearestKSearch(searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0)
     {
         std::cout << "Found neighbor" << std::endl;
-        return Corridor(pos, sqrt(double(pointNKNSquaredDistance[0])));
+        return Corridor(pos, sqrt(double(pointNKNSquaredDistance[0])) - clearance_);
     }
     else
     {
         std::cout << "cloud empty?" << std::endl;
         return Corridor(pos, 10.0);
     }
+}
+
+Eigen::Vector3d CorridorGenerator::getGuidePoint(const std::vector<Eigen::Vector3d> &guide_path, const Corridor &input_corridor)
+{
+}
+
+bool CorridorGenerator::pointInCorridor(const Eigen::Vector3d &point, const Corridor &corridor)
+{
+}
+
+Corridor CorridorGenerator::batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor)
+{
 }

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(swiftlet)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common octree filters)

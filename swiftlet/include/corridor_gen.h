@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <pcl/octree/octree_search.h>
 #include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 using Corridor = std::pair<Eigen::Vector3d, double>;
 using namespace pcl;
@@ -20,8 +21,8 @@ namespace CorridorGen
 
     private: // private member variable
         Eigen::Vector3d initial_position_, goal_position_, local_guide_point_;
-        double resolution;
-        double clearance; // drone radius
+        double resolution_; // point cloud resolution
+        double clearance_; // drone radius
 
         // global guide path
         std::vector<Eigen::Vector3d> guide_path_;
@@ -34,8 +35,8 @@ namespace CorridorGen
         // pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_;
 
     public: // public member function
-        CorridorGenerator(double res);
-        ~CorridorGenerator();
+        CorridorGenerator(double resolution, double clearance);
+        ~CorridorGenerator() = default;
 
         void updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud); // yes
 
@@ -46,9 +47,10 @@ namespace CorridorGen
 
     private: // private member function
         Eigen::Vector3d getGuidePoint(const std::vector<Eigen::Vector3d> &guide_path, const Corridor &input_corridor);
+        bool pointInCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
         Corridor batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
         void generateCorridorAlongPath(); // yes
-        bool pointInCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
+        
 
         // more functions to implement batchSample(...)
     };
