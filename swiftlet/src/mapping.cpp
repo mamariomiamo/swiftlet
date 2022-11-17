@@ -44,9 +44,11 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_in)
   corridor_generator->updatePointCloud(local_cloud);
 }
 
-void publishPath(const std::vector<Eigen::Vector3d> &path_list, auto publisher, bool use_jps);
-void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, auto publisher);
-void visualizeCorridor(const Corridor &corridor, auto publisher);
+void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher, bool use_jps);
+void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher);
+void visualizeCorridor(const Corridor &corridor, ros::Publisher* publisher);
+void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* publisher);
+
 int main(int argc, char **argv)
 {
 
@@ -90,12 +92,15 @@ int main(int argc, char **argv)
   ros::Subscriber local_cloud_sub_ = nh.subscribe("/laser_simulator/local_cloud_world", 10, cloudCallback);
   ros::Publisher vis_pub = nh.advertise<visualization_msgs::MarkerArray>("Astar_node", 0);
   ros::Publisher corridor_vis_pub = nh.advertise<visualization_msgs::Marker>("corridor", 0);
+  ros::Publisher corridors_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("corridors", 0);
   // ros::spin();
 
   ros::Rate rate(20);
 
   std::vector<Eigen::Vector3d> path_list;
   std::vector<Eigen::Vector3d> prev_path;
+
+  std::vector<Corridor> corridor_list;
 
   while (ros::ok())
   {
@@ -112,12 +117,18 @@ int main(int argc, char **argv)
         path_list.clear();
 
         gs->getPath(path_list);
-        Corridor test_corridor = corridor_generator->GenerateOneSphere(path_list.front());
-        std::cout << "position: " << test_corridor.first.transpose() << " radius: " << test_corridor.second << std::endl;
+        ros::Time before_gen = ros::Time::now();
+        // Corridor test_corridor = corridor_generator->GenerateOneSphere(path_list.front());
+        corridor_generator->generateCorridorAlongPath(path_list);
+        corridor_list = corridor_generator->getCorridor();
+        ros::Time after_gen = ros::Time::now();
+        std::cout << "gen used: " << (after_gen - before_gen).toSec() << std::endl;
+        // std::cout << "position: " << test_corridor.first.transpose() << " radius: " << test_corridor.second << std::endl;
         // std::cout << " size of path list " << path_list.size() << std::endl;
         deletePrePath(prev_path, &vis_pub);
         publishPath(path_list, &vis_pub, gs->useJPS());
-        visualizeCorridor(test_corridor, &corridor_vis_pub);
+        // visualizeCorridor(test_corridor, &corridor_vis_pub);
+        visualizeCorridors(corridor_list, &corridors_vis_pub);
         prev_path.swap(path_list);
         require_planning = false;
         break;
@@ -132,7 +143,7 @@ int main(int argc, char **argv)
   }
 }
 
-void visualizeCorridor(const Corridor &corridor, auto publisher)
+void visualizeCorridor(const Corridor &corridor, ros::Publisher* publisher)
 {
   auto [position, radius] = corridor;
   visualization_msgs::Marker corridor_sphere;
@@ -148,15 +159,54 @@ void visualizeCorridor(const Corridor &corridor, auto publisher)
   corridor_sphere.pose.orientation.y = 0.0;
   corridor_sphere.pose.orientation.z = 0.0;
   corridor_sphere.pose.orientation.w = 1.0;
-  corridor_sphere.scale.x = radius*2;
-  corridor_sphere.scale.y = radius*2;
-  corridor_sphere.scale.z = radius*2;
+  corridor_sphere.scale.x = radius * 2;
+  corridor_sphere.scale.y = radius * 2;
+  corridor_sphere.scale.z = radius * 2;
   corridor_sphere.color.a = 0.5; // Don't forget to set the alpha!
 
   publisher->publish(corridor_sphere);
 }
 
-void publishPath(const std::vector<Eigen::Vector3d> &path_list, auto publisher, bool use_jps)
+void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* publisher)
+{
+  visualization_msgs::MarkerArray corridors_array;
+  std::cout << corridors.size() << std::endl;
+  corridors_array.markers.reserve(corridors.size());
+  int index = 0;
+  for (auto corridor : corridors)
+  {
+    auto [position, radius] = corridor;
+    visualization_msgs::Marker corridor_sphere;
+    corridor_sphere.header.frame_id = "map";
+    corridor_sphere.header.stamp = ros::Time::now();
+    corridor_sphere.id = index;
+    corridor_sphere.type = visualization_msgs::Marker::SPHERE;
+    corridor_sphere.action = visualization_msgs::Marker::ADD;
+    corridor_sphere.pose.position.x = position.x();
+    corridor_sphere.pose.position.y = position.y();
+    corridor_sphere.pose.position.z = position.z();
+    corridor_sphere.pose.orientation.x = 0.0;
+    corridor_sphere.pose.orientation.y = 0.0;
+    corridor_sphere.pose.orientation.z = 0.0;
+    corridor_sphere.pose.orientation.w = 1.0;
+    corridor_sphere.scale.x = radius * 2;
+    corridor_sphere.scale.y = radius * 2;
+    corridor_sphere.scale.z = radius * 2;
+    corridor_sphere.color.a = 0.5; // Don't forget to set the alpha!
+
+    corridors_array.markers.emplace_back(corridor_sphere);
+
+    std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
+    index++;
+
+  }
+
+  std::cout << "corridor marker array size is: " << corridors_array.markers.size() << std::endl;
+
+  publisher->publish(corridors_array);
+}
+
+void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher, bool use_jps)
 {
   std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;
@@ -205,7 +255,7 @@ void publishPath(const std::vector<Eigen::Vector3d> &path_list, auto publisher, 
   publisher->publish(astar_nodes);
 }
 
-void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, auto publisher)
+void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher)
 {
   std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;

@@ -44,12 +44,14 @@ namespace CorridorGen
         Corridor GenerateOneSphere(const Eigen::Vector3d &pos);
 
         void updateGlobalPath(const std::vector<Eigen::Vector3d> &path); // yes
+        const std::vector<Corridor>& getCorridor() const;
+        void generateCorridorAlongPath(const std::vector<Eigen::Vector3d> &path); // wip
 
     private: // private member function
-        Eigen::Vector3d getGuidePoint(const std::vector<Eigen::Vector3d> &guide_path, const Corridor &input_corridor);
+        Eigen::Vector3d getGuidePoint(std::vector<Eigen::Vector3d> &guide_path, const Corridor &input_corridor);
         bool pointInCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
         Corridor batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
-        void generateCorridorAlongPath(); // yes
+        
         
 
         // more functions to implement batchSample(...)
