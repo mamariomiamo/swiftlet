@@ -7,7 +7,8 @@
 #include <graph_search.h>
 #include <corridor_gen.h>
 #include <pcl/conversions.h>
-
+#include <random>
+using CorridorGen::Corridor;
 // global variable
 Eigen::Vector3d current_pos;
 Eigen::Vector3d target_pos;
@@ -16,8 +17,14 @@ bool test_jps_;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
-std::shared_ptr<CorridorGen::CorridorGenerator> corridor_generator = std::make_shared<CorridorGen::CorridorGenerator>(resolution, clearance);
+int max_sample = 100;
+double ceiling = 3.0;
+double floor_limit = 1.0;
+std::shared_ptr<CorridorGen::CorridorGenerator> corridor_generator = std::make_shared<CorridorGen::CorridorGenerator>(resolution, clearance, max_sample, ceiling, floor_limit);
 pcl::PointCloud<pcl::PointXYZ>::Ptr local_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+std::random_device dev;
+std::mt19937 generator(dev());
+std::uniform_real_distribution<double> dis(0.0, 1.0);
 
 void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
 {
@@ -44,10 +51,10 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_in)
   corridor_generator->updatePointCloud(local_cloud);
 }
 
-void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher, bool use_jps);
-void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher);
-void visualizeCorridor(const Corridor &corridor, ros::Publisher* publisher);
-void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* publisher);
+void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher, bool use_jps);
+void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher);
+void visualizeCorridor(const Corridor &corridor, ros::Publisher *publisher);
+void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *publisher);
 
 int main(int argc, char **argv)
 {
@@ -143,7 +150,7 @@ int main(int argc, char **argv)
   }
 }
 
-void visualizeCorridor(const Corridor &corridor, ros::Publisher* publisher)
+void visualizeCorridor(const Corridor &corridor, ros::Publisher *publisher)
 {
   auto [position, radius] = corridor;
   visualization_msgs::Marker corridor_sphere;
@@ -167,7 +174,7 @@ void visualizeCorridor(const Corridor &corridor, ros::Publisher* publisher)
   publisher->publish(corridor_sphere);
 }
 
-void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* publisher)
+void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *publisher)
 {
   visualization_msgs::MarkerArray corridors_array;
   std::cout << corridors.size() << std::endl;
@@ -192,13 +199,15 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* 
     corridor_sphere.scale.x = radius * 2;
     corridor_sphere.scale.y = radius * 2;
     corridor_sphere.scale.z = radius * 2;
-    corridor_sphere.color.a = 0.5; // Don't forget to set the alpha!
+    corridor_sphere.color.a = 0.2; // Don't forget to set the alpha!
+    corridor_sphere.color.r = dis(generator);
+    corridor_sphere.color.g = dis(generator);
+    corridor_sphere.color.b = dis(generator);
 
     corridors_array.markers.emplace_back(corridor_sphere);
 
     std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
     index++;
-
   }
 
   std::cout << "corridor marker array size is: " << corridors_array.markers.size() << std::endl;
@@ -206,7 +215,7 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher* 
   publisher->publish(corridors_array);
 }
 
-void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher, bool use_jps)
+void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher, bool use_jps)
 {
   std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;
@@ -255,7 +264,7 @@ void publishPath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* 
   publisher->publish(astar_nodes);
 }
 
-void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher* publisher)
+void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher)
 {
   std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;
