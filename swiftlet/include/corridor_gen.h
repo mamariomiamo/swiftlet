@@ -31,7 +31,6 @@ namespace CorridorGen
         {
             double radius = geometry.second;
             ego_volume = four_thirds * PI * radius * radius * radius;
-            // std::cout << "ego volume is " << ego_volume << std::endl;
         }
 
         // https://mathworld.wolfram.com/Sphere-SphereIntersection.html eq(16)
@@ -42,7 +41,7 @@ namespace CorridorGen
             double distance_between = (pre_center - curr_center).norm();
             double first = pre_radius + curr_radius - distance_between;
             double second = distance_between * distance_between + 2 * distance_between * (pre_radius + curr_radius) - 3 * (pre_radius * pre_radius + curr_radius * curr_radius) + 6 * pre_radius * curr_radius;
-            overlap_volume = PI * first * second / 12 / distance_between;
+            overlap_volume = PI * first * first * second / 12 / distance_between;
         }
 
         void updateScore(const Corridor &previous_corridor, Eigen::Vector2d weighting)
@@ -50,6 +49,7 @@ namespace CorridorGen
             updateEgoVolume();
             updateOverlapVolume(previous_corridor);
             score = Eigen::Vector2d(ego_volume, overlap_volume).transpose() * weighting;
+            std::cout << " score " << score << std::endl;
         }
     };
 
@@ -78,13 +78,17 @@ namespace CorridorGen
         int max_sample_;
         double ceiling_; // height limit 
         double floor_; // floor limit
+        double goal_pt_margin_;
 
         // global guide path
         std::vector<Eigen::Vector3d> guide_path_;
+        std::vector<Eigen::Vector3d> waypoint_list_;
 
         // store the local point cloud
         pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_ =
             decltype(octree_)(0.1);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_;
 
         // for sampling
         std::mt19937_64 gen_;
@@ -99,22 +103,28 @@ namespace CorridorGen
         // pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_;
 
     public: // public member function
-        CorridorGenerator(double resolution, double clearance, int max_sample_, double ceiling, double floor_);
+        CorridorGenerator(double resolution, double clearance, int max_sample_, double ceiling, double floor_,  double goal_pt_margin);
         ~CorridorGenerator() = default;
 
         void updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud); // yes
 
         // Generate a sphere SFC given a position
         Corridor GenerateOneSphere(const Eigen::Vector3d &pos);
+        auto GenerateOneSphereVerbose(const Eigen::Vector3d &pos);
 
         void updateGlobalPath(const std::vector<Eigen::Vector3d> &path); // yes
         const std::vector<Corridor> &getCorridor() const;
+        const std::vector<Eigen::Vector3d> &getWaypointList() const;
         void generateCorridorAlongPath(const std::vector<Eigen::Vector3d> &path); // wip
 
     private: // private member function
         Eigen::Vector3d getGuidePoint(std::vector<Eigen::Vector3d> &guide_path, const Corridor &input_corridor);
         bool pointInCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
+        bool pointNearCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
         Corridor batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
+        Corridor directionalSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
+        Corridor uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
+        Eigen::Vector3d getMidPointBetweenCorridors(const Corridor &previous_corridor, const Corridor &current_corridor);
 
         // more functions to implement batchSample(...)
     };
