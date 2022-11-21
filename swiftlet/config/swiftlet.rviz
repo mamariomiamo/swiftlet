@@ -7,6 +7,7 @@ Panels:
         - /TF1/Frames1
         - /octomap point cloud centre1
         - /local occupancy inflated1
+        - /MarkerArray2
       Splitter Ratio: 0.6213017702102661
     Tree Height: 1557
   - Class: rviz/Selection
@@ -185,8 +186,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 3.074044704437256
-        Min Value: -1.070389986038208
+        Max Value: 3.073859453201294
+        Min Value: 0.05755496025085449
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -194,7 +195,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -209,7 +210,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 1
       Class: rviz/Axes
       Enabled: true
@@ -286,7 +287,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 2.950000047683716
+        Max Value: 2.8499999046325684
         Min Value: -0.05000000074505806
         Value: true
       Axis: Z
@@ -295,7 +296,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -310,7 +311,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /occupancy_mapping/Astar_node
@@ -332,7 +333,7 @@ Visualization Manager:
       Marker Topic: /occupancy_mapping/initial_path
       Name: path segments
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -340,7 +341,7 @@ Visualization Manager:
       Marker Topic: /occupancy_mapping/corridors
       Name: corridors
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -348,7 +349,15 @@ Visualization Manager:
       Marker Topic: /occupancy_mapping/corridor_center
       Name: corridor center
       Namespaces:
-        {}
+        "": true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /occupancy_mapping/sample_direction
+      Name: MarkerArray
+      Namespaces:
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -386,7 +395,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.113920211791992
+      Distance: 20.17356300354004
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -394,17 +403,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -15.756743431091309
-        Y: 1.2135133743286133
-        Z: 3.657883405685425
+        X: -15.73328685760498
+        Y: -0.2117798775434494
+        Z: 3.5718605518341064
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5047972202301025
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
-      Yaw: 3.1154189109802246
+      Yaw: 3.130359172821045
     Saved: ~
 Window Geometry:
   Displays:
