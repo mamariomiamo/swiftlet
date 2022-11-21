@@ -17,7 +17,7 @@ bool test_jps_;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
-int max_sample = 50;
+int max_sample = 200;
 double ceiling = 3.0;
 double floor_limit = 1.0;
 double goal_pt_margin = 0.2;
@@ -68,6 +68,7 @@ void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher
 void deletePrePointLists(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher);
 void visualizeCorridor(const Corridor &corridor, ros::Publisher *publisher);
 void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *publisher);
+void visualizeSampleDirection(const auto sample_direction, ros::Publisher *publisher);
 
 int main(int argc, char **argv)
 {
@@ -116,6 +117,7 @@ int main(int argc, char **argv)
   ros::Publisher path_segment_pub = nh.advertise<visualization_msgs::Marker>("initial_path", 100);
   ros::Publisher corridor_vis_pub = nh.advertise<visualization_msgs::Marker>("corridor", 100);
   ros::Publisher corridors_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("corridors", 100);
+  ros::Publisher sample_direction_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("sample_direction", 100);
   // ros::spin();
 
   ros::Rate rate(20);
@@ -127,6 +129,8 @@ int main(int argc, char **argv)
   std::vector<Eigen::Vector3d> waypt_list;
   std::vector<Eigen::Vector3d> pre_waypt_list;
   std::vector<Eigen::Vector3d> corridor_center;
+
+  std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> sample_direction;
 
   while (ros::ok())
   {
@@ -151,6 +155,7 @@ int main(int argc, char **argv)
         corridor_generator->generateCorridorAlongPath(path_list);
         corridor_list = corridor_generator->getCorridor();
         waypt_list = corridor_generator->getWaypointList();
+        sample_direction = corridor_generator->getSampleDirection();
         corridor_center.clear();
         for (auto corridor : corridor_list)
         {
@@ -169,6 +174,7 @@ int main(int argc, char **argv)
         deletePrePath(pre_waypt_list, &path_segment_pub);
         publishPath(waypt_list, &path_segment_pub);
         publishPointLists(corridor_center, &corridor_center_pub, 2);
+        visualizeSampleDirection(sample_direction, &sample_direction_vis_pub);
         // visualizeCorridor(test_corridor, &corridor_vis_pub);
         visualizeCorridors(corridor_list, &corridors_vis_pub);
         prev_path.swap(path_list);
@@ -242,7 +248,7 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *
 
     corridors_array.markers.emplace_back(corridor_sphere);
 
-    // std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
+    std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
     index++;
   }
 
@@ -386,4 +392,44 @@ void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher
   }
 
   publisher->publish(line_strip);
+}
+
+void visualizeSampleDirection(const auto sample_direction, ros::Publisher *publisher)
+{
+  // std::cout << "publishing path" << std::endl;
+  visualization_msgs::MarkerArray direction_list;
+  int array_size = sample_direction.size();
+  direction_list.markers.clear();
+  // astar_nodes.markers.resize(array_size);
+  // path_list.clear();
+  // path_list.emplace_back(current_pos);
+  // path_list.emplace_back(target_pos);
+
+  for (int i = 0; i < array_size; i++)
+  {
+    visualization_msgs::Marker node;
+    node.header.frame_id = "map";
+    node.header.stamp = ros::Time::now();
+    node.id = i;
+    node.type = visualization_msgs::Marker::ARROW;
+    node.action = visualization_msgs::Marker::ADD;
+
+    geometry_msgs::Point from, to;
+    from = vect2Point(sample_direction[i].first);
+    to = vect2Point(sample_direction[i].second);
+
+    node.points.push_back(from);
+    node.points.push_back(to);
+    node.scale.x = 0.05;
+    node.scale.y = 0.05;
+    node.scale.z = 1.05;
+    node.color.a = 1.0; // Don't forget to set the alpha!
+
+    node.color.r = 1.0;
+    node.color.g = 0.0;
+    node.color.b = 0.0;
+
+    direction_list.markers.emplace_back(node);
+  }
+  publisher->publish(direction_list);
 }

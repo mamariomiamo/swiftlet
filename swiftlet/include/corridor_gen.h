@@ -39,9 +39,18 @@ namespace CorridorGen
             auto [pre_center, pre_radius] = previous_corridor;
             auto [curr_center, curr_radius] = geometry;
             double distance_between = (pre_center - curr_center).norm();
-            double first = pre_radius + curr_radius - distance_between;
-            double second = distance_between * distance_between + 2 * distance_between * (pre_radius + curr_radius) - 3 * (pre_radius * pre_radius + curr_radius * curr_radius) + 6 * pre_radius * curr_radius;
-            overlap_volume = PI * first * first * second / 12 / distance_between;
+
+            if (distance_between > (pre_radius + curr_radius))
+            {
+                overlap_volume = 0;
+            }
+
+            else
+            {
+                double first = pre_radius + curr_radius - distance_between;
+                double second = distance_between * distance_between + 2 * distance_between * (pre_radius + curr_radius) - 3 * (pre_radius * pre_radius + curr_radius * curr_radius) + 6 * pre_radius * curr_radius;
+                overlap_volume = PI * first * first * second / 12 / distance_between;
+            }
         }
 
         void updateScore(const Corridor &previous_corridor, Eigen::Vector2d weighting)
@@ -51,12 +60,14 @@ namespace CorridorGen
             if (overlap_volume < 0.02)
             {
                 score = 0;
-                std::cout << "no overlap score " << score << std::endl;
             }
 
             else
             {
                 score = Eigen::Vector2d(ego_volume, overlap_volume).transpose() * weighting;
+                // std::cout << "current center is " << geometry.first.transpose() << std::endl;
+                // std::cout << "current radius is " << geometry.second << std::endl;
+                // std::cout << "overlap_volume " << overlap_volume << std::endl;
             }
 
             // std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
@@ -95,6 +106,11 @@ namespace CorridorGen
         std::vector<Eigen::Vector3d> guide_path_;
         std::vector<Eigen::Vector3d> waypoint_list_;
 
+        // debug
+        std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> sample_direction_;
+        std::vector<Eigen::Vector3d> sample_points_;
+        int push_back_count;
+
         // store the local point cloud
         pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_ =
             decltype(octree_)(0.1);
@@ -124,8 +140,10 @@ namespace CorridorGen
         auto GenerateOneSphereVerbose(const Eigen::Vector3d &pos);
 
         void updateGlobalPath(const std::vector<Eigen::Vector3d> &path); // yes
-        const std::vector<Corridor> &getCorridor() const;
-        const std::vector<Eigen::Vector3d> &getWaypointList() const;
+        const std::vector<Corridor> getCorridor() const;
+        const std::vector<Eigen::Vector3d> getWaypointList() const;
+        const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> getSampleDirection() const;
+        const std::vector<Eigen::Vector3d> getSamplePoint() const;
         void generateCorridorAlongPath(const std::vector<Eigen::Vector3d> &path); // wip
 
     private: // private member function
