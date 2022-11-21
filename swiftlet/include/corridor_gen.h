@@ -48,8 +48,19 @@ namespace CorridorGen
         {
             updateEgoVolume();
             updateOverlapVolume(previous_corridor);
-            score = Eigen::Vector2d(ego_volume, overlap_volume).transpose() * weighting;
-            std::cout << " score " << score << std::endl;
+            if (overlap_volume < 0.02)
+            {
+                score = 0;
+                std::cout << "no overlap score " << score << std::endl;
+            }
+
+            else
+            {
+                score = Eigen::Vector2d(ego_volume, overlap_volume).transpose() * weighting;
+            }
+
+            // std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
+            // std::cout << " overlap " << overlap_volume << " ego_volume " << ego_volume << std::endl;
         }
     };
 
@@ -76,8 +87,8 @@ namespace CorridorGen
         double clearance_;  // drone radius
         double one_third_;
         int max_sample_;
-        double ceiling_; // height limit 
-        double floor_; // floor limit
+        double ceiling_; // height limit
+        double floor_;   // floor limit
         double goal_pt_margin_;
 
         // global guide path
@@ -103,7 +114,7 @@ namespace CorridorGen
         // pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_;
 
     public: // public member function
-        CorridorGenerator(double resolution, double clearance, int max_sample_, double ceiling, double floor_,  double goal_pt_margin);
+        CorridorGenerator(double resolution, double clearance, int max_sample_, double ceiling, double floor_, double goal_pt_margin);
         ~CorridorGenerator() = default;
 
         void updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud); // yes
@@ -123,8 +134,9 @@ namespace CorridorGen
         bool pointNearCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
         Corridor batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
         Corridor directionalSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
-        Corridor uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
+        Corridor uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_origin);
         Eigen::Vector3d getMidPointBetweenCorridors(const Corridor &previous_corridor, const Corridor &current_corridor);
+        void informedRRT(const Eigen::Vector3d &start, const Eigen::Vector3d &goal);
 
         // more functions to implement batchSample(...)
     };

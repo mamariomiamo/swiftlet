@@ -17,7 +17,7 @@ bool test_jps_;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
-int max_sample = 20;
+int max_sample = 50;
 double ceiling = 3.0;
 double floor_limit = 1.0;
 double goal_pt_margin = 0.2;
@@ -242,7 +242,7 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *
 
     corridors_array.markers.emplace_back(corridor_sphere);
 
-    std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
+    // std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
     index++;
   }
 
@@ -253,7 +253,7 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *
 
 void publishPointLists(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher, int color)
 {
-  std::cout << "publishing path" << std::endl;
+  // std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;
   int array_size = path_list.size();
   astar_nodes.markers.clear();
@@ -308,7 +308,7 @@ void publishPointLists(const std::vector<Eigen::Vector3d> &path_list, ros::Publi
 
 void deletePrePointLists(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher *publisher)
 {
-  std::cout << "publishing path" << std::endl;
+  // std::cout << "publishing path" << std::endl;
   visualization_msgs::MarkerArray astar_nodes;
   int array_size = path_list.size();
   astar_nodes.markers.clear();

@@ -50,19 +50,52 @@ void CorridorGenerator::generateCorridorAlongPath(const std::vector<Eigen::Vecto
     std::cout << "before while true" << std::endl;
     std::cout << "initial_position_ " << initial_position_.transpose() << std::endl;
     // todo: implement time check to break from loop
+    bool adjust_guide_point = false;
+    Eigen::Vector3d sample_origin;
     while (true)
     {
         iter_count++;
-        if (iter_count > 100)
+        if (iter_count > 200)
         {
             std::cout << "fail to generate corridor" << std::endl;
             break;
         }
-        local_guide_point_ = getGuidePoint(guide_path_, current_corridor);
-
+        if (!adjust_guide_point)
+        {
+            local_guide_point_ = getGuidePoint(guide_path_, current_corridor);
+            sample_origin = local_guide_point_;
+        }
         // std::cout << "local_guide_point_ " << local_guide_point_.transpose() << std::endl;
         // current_corridor = batchSample(local_guide_point_, current_corridor);
-        current_corridor = uniformBatchSample(local_guide_point_, current_corridor);
+        current_corridor = uniformBatchSample(local_guide_point_, current_corridor, sample_origin);
+        double distance_between_corridor_center = (current_corridor.first - previous_corridor.first).norm();
+
+        // check if the corridor did not move much i.e. clutter place
+        // need to adjust guide point according?
+        // guide point will affect the sample direction
+        // AND sample origin
+        // after adjustment, we will need to use the same sample origin?
+        if (distance_between_corridor_center < 0.5) // this check can be done in batchSample?
+        {
+            adjust_guide_point = true;
+            current_corridor = previous_corridor;
+            continue;
+            // std::cout << "skipped" << std::endl;
+            if(guide_path_.size() < 2)
+            {
+                continue;
+            }
+
+            guide_path_.pop_back();
+            local_guide_point_ = guide_path_.back();
+            adjust_guide_point = true;
+            current_corridor = previous_corridor; // is this needed?
+            continue;
+        }
+        else
+        {
+            adjust_guide_point = false;
+        }
 
         // current_corridor = directionalSample(local_guide_point_, current_corridor);
         // current_corridor = GenerateOneSphere(local_guide_point_);
@@ -245,7 +278,7 @@ Corridor CorridorGenerator::batchSample(const Eigen::Vector3d &guide_point, cons
 
     x_normal_rand_ = std::normal_distribution<double>(0, x_sd);
     y_normal_rand_ = std::normal_distribution<double>(0, y_sd);
-    z_normal_rand_ = std::normal_distribution<double>(0, z_sd);
+    z_normal_rand_ = std::normal_distribution<double>(0, x_sd);
     std::cout << "one_third_ " << one_third_ << std::endl;
     std::cout << "sample_x_vector.norm() " << sample_x_vector.norm() << std::endl;
     std::cout << "x_var " << x_var << std::endl;
@@ -257,8 +290,6 @@ Corridor CorridorGenerator::batchSample(const Eigen::Vector3d &guide_point, cons
 
     std::priority_queue<CorridorPtr, std::vector<CorridorPtr>, CorridorComparator> empty_pool;
     corridor_pool_.swap(empty_pool);
-
-    std::cout << "before batch sample while" << std::endl;
 
     while (sample_num < max_sample_)
     {
@@ -283,9 +314,21 @@ Corridor CorridorGenerator::batchSample(const Eigen::Vector3d &guide_point, cons
 
         CorridorPtr candidiate_corridor = std::make_shared<CorridorSample>();
         candidiate_corridor->geometry = GenerateOneSphere(candidate_pt);
+        // skip the sample if it is too small. 0.25 as in the smallest gap of the environment should be
+        std::cout << "candidiate_corridor->geometry.second " << candidiate_corridor->geometry.second << std::endl;
+        if (candidiate_corridor->geometry.second < 0.25)
+        {
+            std::cout << "too small" << std::endl;
+            continue;
+        }
         // std::cout << "candidiate_corridor " << candidiate_corridor->geometry.first.transpose() << " radius " << candidiate_corridor->geometry.second << std::endl;
         candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(1.0, 1.0));
         corridor_pool_.push(candidiate_corridor);
+    }
+    std::cout << "size " << corridor_pool_.size() << std::endl;
+    if (corridor_pool_.size() == 0)
+    {
+        return input_corridor;
     }
 
     auto ret = corridor_pool_.top();
@@ -362,7 +405,7 @@ Corridor CorridorGenerator::directionalSample(const Eigen::Vector3d &guide_point
             CorridorPtr candidiate_corridor = std::make_shared<CorridorSample>();
             candidiate_corridor->geometry = GenerateOneSphere(candidate_point);
             // std::cout << "candidiate_corridor " << candidiate_corridor->geometry.first.transpose() << " radius " << candidiate_corridor->geometry.second << std::endl;
-            candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(1.0, 5.0));
+            candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(1.0, 20.0));
             corridor_pool_.push(candidiate_corridor);
             // sample_point_bucket.push_back(candidate_point);
         }
@@ -374,7 +417,7 @@ Corridor CorridorGenerator::directionalSample(const Eigen::Vector3d &guide_point
     }
 }
 
-Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor)
+Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_origin)
 {
     auto [previous_center, pre_radius] = input_corridor;
     // auto [pre_center, pre_radius] = input_corridor;
@@ -392,12 +435,15 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
 
     else
     {
+        // informedRRT(guide_point, goal_position_);
         if (desired_radius - radius < resolution)
         {
             return guide_pt_corridor;
         }
 
         Eigen::Vector3d sample_x_vector = previous_center - guide_point;
+        // Eigen::Vector3d sample_x_vector = guide_point - previous_center;
+        // Eigen::Vector3d sample_x_vector = previous_center - goal_position_;
         // std::cout << "previous_center " << previous_center.transpose() << std::endl;
         // std::cout << "guide_point " << guide_point.transpose() << std::endl;
         Eigen::Vector3d sample_x_direction = sample_x_vector / sample_x_vector.norm();
@@ -406,7 +452,7 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
         Eigen::Vector3d rotation_axis;
         Eigen::Matrix3d rotation_matrix;
 
-        double x_var = one_third_ * sample_x_vector.norm() / 5;
+        double x_var = one_third_ * sample_x_vector.norm() / 10;
         double y_var = 2 * x_var;
         double z_var = y_var;
         double x_sd = sqrt(x_var);
@@ -431,28 +477,16 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
             rotation_matrix = Eigen::AngleAxisd(angle_between, rotation_axis);
         }
 
-        // rotation_matrix = Eigen::AngleAxisd(angle_between, rotation_axis);
-
-        // x_normal_rand_ = std::normal_distribution<double>(guide_point.x(), x_sd);
-        // y_normal_rand_ = std::normal_distribution<double>(guide_point.y(), y_sd);
-        // z_normal_rand_ = std::normal_distribution<double>(guide_point.y(), z_sd);
-
         x_normal_rand_ = std::normal_distribution<double>(0, x_sd);
         y_normal_rand_ = std::normal_distribution<double>(0, y_sd);
         z_normal_rand_ = std::normal_distribution<double>(0, z_sd);
-        // std::cout << "one_third_ " << one_third_ << std::endl;
-        // std::cout << "sample_x_vector.norm() " << sample_x_vector.norm() << std::endl;
-        // std::cout << "x_var " << x_var << std::endl;
-        // std::cout << "y_var " << y_var << std::endl;
-        // std::cout << "z_var " << z_var << std::endl;
-        // std::cout << "x_sd " << x_sd << std::endl;
-        // std::cout << "y_sd " << y_sd << std::endl;
-        // std::cout << "z_sd " << z_sd << std::endl;
+
+        std::uniform_real_distribution<double> x_uniform_rand_(-0.1, 0.1);
+        std::uniform_real_distribution<double> y_uniform_rand_(-0.5, 0.5);
+        std::uniform_real_distribution<double> z_uniform_rand_(-0.5, 0.5);
 
         std::priority_queue<CorridorPtr, std::vector<CorridorPtr>, CorridorComparator> empty_pool;
         corridor_pool_.swap(empty_pool);
-
-        std::cout << "before batch sample while" << std::endl;
 
         while (sample_num < max_sample_)
         {
@@ -461,12 +495,17 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
             double y_coord = y_normal_rand_(gen_);
             double z_coord = z_normal_rand_(gen_);
 
+            // double x_coord = x_uniform_rand_(gen_);
+            // double y_coord = y_uniform_rand_(gen_);
+            // double z_coord = z_uniform_rand_(gen_);
+
             // Eigen::Vector3d candidate_pt(0.0, y_coord, z_coord);
-            Eigen::Vector3d candidate_pt(x_coord, y_coord, z_coord);
+            // Eigen::Vector3d candidate_pt(x_coord, y_coord, z_coord);
+            Eigen::Vector3d candidate_pt(x_coord, y_coord, 0.0);
             // needs to transform the candidate_pt to align the axes
             // std::cout << "before transformation " << candidate_pt.transpose() << std::endl;
             // candidate_pt = rotation_matrix.transpose() * candidate_pt + guide_point;
-            candidate_pt = rotation_matrix * candidate_pt + guide_point;
+            candidate_pt = rotation_matrix * candidate_pt + sample_origin;
             // std::cout << "candidate_pt " << candidate_pt.transpose() << std::endl;
 
             // if (double(candidate_pt.z()) > ceiling_ || double(candidate_pt.z()) < floor_)
@@ -477,9 +516,18 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
 
             CorridorPtr candidiate_corridor = std::make_shared<CorridorSample>();
             candidiate_corridor->geometry = GenerateOneSphere(candidate_pt);
+            // skip the sample if it is too small 0.5 as in the smallest gap of the environment should be
+            if (candidiate_corridor->geometry.second < 0.25)
+            {
+                continue;
+            }
             // std::cout << "candidiate_corridor " << candidiate_corridor->geometry.first.transpose() << " radius " << candidiate_corridor->geometry.second << std::endl;
-            candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(2.0, 1.0));
+            candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(2.0, 10.0));
             corridor_pool_.push(candidiate_corridor);
+        }
+        if (corridor_pool_.size() == 0)
+        {
+            return input_corridor;
         }
 
         // auto ret = corridor_pool_.top();
