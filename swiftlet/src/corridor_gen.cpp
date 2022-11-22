@@ -11,6 +11,7 @@ CorridorGenerator::CorridorGenerator(double resolution, double clearance, int ma
     one_third_ = 1.0 / 3.0;
     // normal_rand_ = std::normal_distribution<double>(0.0, 1.0);
     // normal_rand_(gen_);
+    closeness_threshold_ = 0.5;
 }
 
 void CorridorGenerator::updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud)
@@ -53,7 +54,7 @@ void CorridorGenerator::generateCorridorAlongPath(const std::vector<Eigen::Vecto
     std::cout << "before while true" << std::endl;
     std::cout << "initial_position_ " << initial_position_.transpose() << std::endl;
     // todo: implement time check to break from loop
-    bool adjust_guide_point = false;
+    bool guide_point_adjusted = false;
     Eigen::Vector3d sample_origin;
     int stagnant_count = 0;
     while (true)
@@ -64,15 +65,16 @@ void CorridorGenerator::generateCorridorAlongPath(const std::vector<Eigen::Vecto
             std::cout << "OVER MAX_ITER FAIL to generate corridor" << std::endl;
             break;
         }
-        if (!adjust_guide_point)
+        if (!guide_point_adjusted)
         {
             stagnant_count = 0;
             local_guide_point_ = getGuidePoint(guide_path_, current_corridor);
             sample_origin = local_guide_point_;
+            closeness_threshold_ = 0.5;
         }
         // std::cout << "local_guide_point_ " << local_guide_point_.transpose() << std::endl;
         // current_corridor = batchSample(local_guide_point_, current_corridor);
-        current_corridor = uniformBatchSample(local_guide_point_, current_corridor, sample_origin);
+        current_corridor = uniformBatchSample(local_guide_point_, current_corridor, sample_origin, guide_point_adjusted);
         double distance_between_corridor_center = (current_corridor.first - previous_corridor.first).norm();
         std::cout << "distance_between_corridor_center " << distance_between_corridor_center << std::endl;
         std::cout << " current_corridor " << current_corridor.first.transpose() << std::endl;
@@ -82,47 +84,67 @@ void CorridorGenerator::generateCorridorAlongPath(const std::vector<Eigen::Vecto
         // guide point will affect the sample direction
         // AND sample origin
         // after adjustment, we will need to use the same sample origin?
-        if (distance_between_corridor_center < 0.7) // this check can be done in batchSample?
+        // if (distance_between_corridor_center < 0.5) // this check can be done in batchSample?
+
+        if (corridorTooClose(current_corridor))
         {
-            adjust_guide_point = true;
-            current_corridor = previous_corridor;
+            guide_point_adjusted = true;
+            current_corridor = previous_corridor; // is this needed?
             stagnant_count++;
+            closeness_threshold_ = current_corridor.second;
+            if (guide_path_.size() < 2)
+            {
+                std::cout << "TOO STAGNANT and guide_path empty FAIL to generate corridor" << std::endl;
+                break;
+            }
             if (stagnant_count > 3)
             {
-                // std::cout << "TOO STAGNANT, Early termination" << std::endl;
+                closeness_threshold_ = closeness_threshold_ - stagnant_count * 0.1;
+                if (closeness_threshold_ < 0.2)
+                {
+                    closeness_threshold_ = 0.2;
+                }
+                // prevent popping an empty guide_path list
+                // if (guide_path_.size() < 2)
+                // {
+                //     std::cout << "TOO STAGNANT and guide_path empty FAIL to generate corridor" << std::endl;
+                //     break;
+                // }
+
+                std::cout << "TOO STAGNANT adjusting guide point" << std::endl;
                 // break;
                 stagnant_count = 0;
-
-                // prevent popping an empty guide_path list
-                if (guide_path_.size() < 2)
-                {
-                    std::cout << "TOO STAGNANT and guide_path empty FAIL to generate corridor" << std::endl;
-                    break;
-                }
                 guide_path_.pop_back();
                 local_guide_point_ = guide_path_.back();
+                // sample_origin = local_guide_point_;
             }
 
             else
+            {
+                guide_path_.pop_back();
+                local_guide_point_ = guide_path_.back();
+                // sample_origin = local_guide_point_;
                 continue;
+            }
+
             // std::cout << "skipped" << std::endl;
 
             // prevent popping an empty guide_path list
-            if (guide_path_.size() < 2)
-            {
-                std::cout << "guide_path empty fail to generate corridor" << std::endl;
-                break;
-            }
+            // if (guide_path_.size() < 2)
+            // {
+            //     std::cout << "guide_path empty fail to generate corridor" << std::endl;
+            //     break;
+            // }
 
-            guide_path_.pop_back();
-            local_guide_point_ = guide_path_.back();
-            adjust_guide_point = true;
-            current_corridor = previous_corridor; // is this needed?
+            // guide_path_.pop_back();
+            // local_guide_point_ = guide_path_.back();
+            // guide_point_adjusted = true;
+            // current_corridor = previous_corridor;
             continue;
         }
         else
         {
-            adjust_guide_point = false;
+            guide_point_adjusted = false;
         }
 
         // current_corridor = directionalSample(local_guide_point_, current_corridor);
@@ -451,11 +473,35 @@ Corridor CorridorGenerator::directionalSample(const Eigen::Vector3d &guide_point
     }
 }
 
-Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_origin)
+Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_around, bool guide_point_adjusted)
 {
+    bool sample_in_clutter;
     auto [previous_center, pre_radius] = input_corridor;
+
+    Eigen::Vector3d sample_origin;
+    if (guide_point_adjusted)
+    {
+        sample_in_clutter = true;
+        Eigen::Vector3d sample_direction = guide_point - previous_center;
+        sample_direction = sample_direction / sample_direction.norm();
+        sample_origin = sample_direction * pre_radius + previous_center;
+    }
+    else
+    {
+        sample_in_clutter = false;
+        sample_origin = sample_around;
+    }
+
     // auto [pre_center, pre_radius] = input_corridor;
-    auto ret = GenerateOneSphereVerbose(guide_point);
+    // if guide_point is adjusted i.e. it will lead to early return
+    // because there will be no overlap between the previous and new corridors
+    // auto ret = GenerateOneSphereVerbose(guide_point);
+
+    //
+    auto ret = GenerateOneSphereVerbose(sample_origin);
+
+    std::cout << "sample_origin " << sample_origin.transpose() << std::endl;
+
     Corridor guide_pt_corridor = ret.first;
     Eigen::Vector3d obstacle = ret.second;
     auto [center, radius] = guide_pt_corridor;
@@ -463,10 +509,19 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
     double resolution = 0.1;
     std::vector<Eigen::Vector3d> sample_point_bucket;
 
-    // checks needed if guide_point is adjusted
+    // Following check is needed if guide_point is adjusted
+    // Also handle Special case when the sample_origin (guide point) is very close to the obstacle
+    // we will continue for batchsample
     double distance_between = (previous_center - center).norm();
-    if(distance_between > (pre_radius + radius))
+    if (distance_between > (pre_radius + radius) && (radius > 0.25) && (!guide_point_adjusted))
     {
+        std::cout << "Candidate too far, no overlap " << center.transpose() << std::endl;
+        return input_corridor;
+    }
+
+    if (distance_between > (pre_radius + radius) && (radius > 0.25) && (guide_point_adjusted))
+    {
+        std::cout << "After adjustment Candidate too far, no overlap " << center.transpose() << std::endl;
         return input_corridor;
     }
 
@@ -478,14 +533,20 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
     else
     {
         // informedRRT(guide_point, goal_position_);
+        // todo combine logic with if statement
         if (desired_radius - radius < resolution)
         {
             return guide_pt_corridor;
         }
-
-        Eigen::Vector3d sample_x_vector = previous_center - guide_point;
+        Eigen::Vector3d sample_to;
+        Eigen::Vector3d sample_from;
+        sample_from = sample_origin;
+        sample_to = previous_center;
+        sample_to.z() = sample_from.z(); // to ensure sample direction is along the guide path z plane
+        Eigen::Vector3d sample_x_vector = sample_to - guide_point;
         Eigen::Vector3d sample_dir_coord = sample_x_vector + guide_point;
-        sample_direction_.push_back(std::make_pair(guide_point, sample_dir_coord));
+        // sample_direction_.push_back(std::make_pair(guide_point, sample_dir_coord));
+        sample_direction_.push_back(std::make_pair(sample_from, sample_to));
         // Eigen::Vector3d sample_x_vector = guide_point - previous_center;
         // Eigen::Vector3d sample_x_vector = previous_center - goal_position_;
         // std::cout << "previous_center " << previous_center.transpose() << std::endl;
@@ -528,38 +589,66 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
         std::cout << "-sample_length, sample_length " << sample_length << std::endl;
         std::uniform_real_distribution<double> x_uniform_rand_(-sample_length, sample_length);
         std::uniform_real_distribution<double> y_uniform_rand_(-0.5, 0.5);
-        std::uniform_real_distribution<double> z_uniform_rand_(-0.5, 0.5);
+        std::uniform_real_distribution<double> z_uniform_rand_(-0.2, 0.2);
 
         std::priority_queue<CorridorPtr, std::vector<CorridorPtr>, CorridorComparator> empty_pool;
         corridor_pool_.swap(empty_pool);
 
+        Eigen::Vector2d weighting;
+
         while (sample_num < max_sample_)
         {
             sample_num++;
-            double x_coord = x_normal_rand_(gen_);
-            double y_coord = y_normal_rand_(gen_);
-            double z_coord = z_normal_rand_(gen_);
+            Eigen::Vector3d candidate_pt;
+            if (sample_in_clutter)
+            {
+                std::cout << "sample_in_clutter" << std::endl;
 
-            // double x_coord = x_uniform_rand_(gen_);
-            // double y_coord = y_uniform_rand_(gen_);
-            // double z_coord = z_uniform_rand_(gen_);
+                x_uniform_rand_ = std::uniform_real_distribution<double>(-sample_length, 0);
+                y_uniform_rand_ = std::uniform_real_distribution<double>(-sample_length, sample_length);
+                z_uniform_rand_ = std::uniform_real_distribution<double>(0, 0);
+                // double x_coord = x_normal_rand_(gen_);
+                // double y_coord = y_normal_rand_(gen_);
+                // double z_coord = z_normal_rand_(gen_);
+                double x_coord = x_uniform_rand_(gen_);
+                double y_coord = y_uniform_rand_(gen_);
+                double z_coord = z_uniform_rand_(gen_);
+                candidate_pt << x_coord, y_coord, 0.0;
+                weighting << 1.0, 5.0;
+            }
 
-            // Eigen::Vector3d candidate_pt(0.0, y_coord, z_coord);
-            // Eigen::Vector3d candidate_pt(x_coord, y_coord, z_coord);
-            Eigen::Vector3d candidate_pt(x_coord, y_coord, 0.0);
-            
+            else
+            {
+                double x_coord = x_normal_rand_(gen_);
+                double y_coord = y_normal_rand_(gen_);
+                double z_coord = z_normal_rand_(gen_);
+
+                // Eigen::Vector3d candidate_pt(0.0, y_coord, z_coord);
+                // Eigen::Vector3d candidate_pt(x_coord, y_coord, z_coord);
+
+                candidate_pt << x_coord, y_coord, z_coord;
+                weighting << 2.0, 5.0;
+            }
+
             // needs to transform the candidate_pt to align the axes
             candidate_pt = rotation_matrix * candidate_pt + sample_origin;
+            candidate_pt.z() = sample_origin.z();
 
             CorridorPtr candidiate_corridor = std::make_shared<CorridorSample>();
             candidiate_corridor->geometry = GenerateOneSphere(candidate_pt);
+
             // skip the sample if it is too small 0.5 as in the smallest gap of the environment should be
-            if (candidiate_corridor->geometry.second < 0.25)
+            if (candidiate_corridor->geometry.second < 0.15 || candidiate_corridor->geometry.second < 0)
             {
                 continue;
             }
+
+            if (sample_in_clutter)
+            {
+                std::cout << "clutter sample radius is " << candidiate_corridor->geometry.second << std::endl;
+            }
             // std::cout << "candidiate_corridor " << candidiate_corridor->geometry.first.transpose() << " radius " << candidiate_corridor->geometry.second << std::endl;
-            candidiate_corridor->updateScore(input_corridor, Eigen::Vector2d(2.0, 5.0));
+            candidiate_corridor->updateScore(input_corridor, weighting);
 
             if (candidiate_corridor->score == 0)
             {
@@ -572,6 +661,7 @@ Corridor CorridorGenerator::uniformBatchSample(const Eigen::Vector3d &guide_poin
         }
         if (corridor_pool_.size() == 0)
         {
+            std::cout << " no candidate found " << std::endl;
             return input_corridor;
         }
 
@@ -617,4 +707,42 @@ Eigen::Vector3d CorridorGenerator::getMidPointBetweenCorridors(const Corridor &p
     Eigen::Vector3d waypt = previous2current * distance_to_waypt + pre_center;
     std::cout << "waypt " << waypt.transpose() << std::endl;
     return waypt;
+}
+
+bool CorridorGenerator::corridorTooClose(const Corridor &corridor_for_check)
+{
+    std::cout << "threshold is " << closeness_threshold_ << std::endl;
+    if (flight_corridor_.empty())
+    {
+        return false;
+    }
+
+    double closest_distance = 100;
+    ;
+
+    auto [query_center, query_radius] = corridor_for_check;
+
+    for (auto corridor : flight_corridor_)
+    {
+        auto [curr_center, curr_radius] = corridor;
+
+        double distance = (curr_center - query_center).norm();
+
+        if (distance < closest_distance)
+        {
+            closest_distance = distance;
+        }
+    }
+
+    if (closest_distance < closeness_threshold_)
+    {
+        std::cout << "corridor too close, skip" << std::endl;
+        std::cout << "threshold is " << closeness_threshold_ << std::endl;
+        return true;
+    }
+
+    else
+    {
+        return false;
+    }
 }

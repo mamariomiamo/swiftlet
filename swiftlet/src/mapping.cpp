@@ -17,7 +17,7 @@ bool test_jps_;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
-int max_sample = 200;
+int max_sample = 100;
 double ceiling = 3.0;
 double floor_limit = 1.0;
 double goal_pt_margin = 0.2;
@@ -420,9 +420,9 @@ void visualizeSampleDirection(const auto sample_direction, ros::Publisher *publi
 
     node.points.push_back(from);
     node.points.push_back(to);
-    node.scale.x = 0.05;
-    node.scale.y = 0.05;
-    node.scale.z = 1.05;
+    node.scale.x = 0.03;
+    node.scale.y = 0.08;
+    node.scale.z = 0.05;
     node.color.a = 1.0; // Don't forget to set the alpha!
 
     node.color.r = 1.0;

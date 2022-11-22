@@ -55,13 +55,17 @@ namespace CorridorGen
 
         void updateScore(const Corridor &previous_corridor, Eigen::Vector2d weighting)
         {
+            // check if overlap before even calling updateScore?
             updateEgoVolume();
             updateOverlapVolume(previous_corridor);
-            if (overlap_volume < 0.02)
+            // if (overlap_volume < 0.02)
+            // {
+            //     score = 0;
+            // }
+            if (overlap_volume == 0)
             {
                 score = 0;
             }
-
             else
             {
                 score = Eigen::Vector2d(ego_volume, overlap_volume).transpose() * weighting;
@@ -70,8 +74,8 @@ namespace CorridorGen
                 // std::cout << "overlap_volume " << overlap_volume << std::endl;
             }
 
-            // std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
-            // std::cout << " overlap " << overlap_volume << " ego_volume " << ego_volume << std::endl;
+            std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
+            std::cout << " overlap " << overlap_volume << " ego_volume " << ego_volume << std::endl;
         }
     };
 
@@ -101,6 +105,7 @@ namespace CorridorGen
         double ceiling_; // height limit
         double floor_;   // floor limit
         double goal_pt_margin_;
+        double closeness_threshold_; // this will follow the radius of corridor in clutter environment
 
         // global guide path
         std::vector<Eigen::Vector3d> guide_path_;
@@ -152,8 +157,9 @@ namespace CorridorGen
         bool pointNearCorridor(const Eigen::Vector3d &point, const Corridor &corridor);
         Corridor batchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
         Corridor directionalSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor);
-        Corridor uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_origin);
+        Corridor uniformBatchSample(const Eigen::Vector3d &guide_point, const Corridor &input_corridor, const Eigen::Vector3d &sample_origin, bool guide_point_adjusted);
         Eigen::Vector3d getMidPointBetweenCorridors(const Corridor &previous_corridor, const Corridor &current_corridor);
+        bool corridorTooClose(const Corridor &corridor_for_check);
         void informedRRT(const Eigen::Vector3d &start, const Eigen::Vector3d &goal);
 
         // more functions to implement batchSample(...)
