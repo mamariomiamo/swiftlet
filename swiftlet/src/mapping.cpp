@@ -14,6 +14,9 @@ Eigen::Vector3d current_pos;
 Eigen::Vector3d target_pos;
 bool require_planning = false;
 bool test_jps_;
+bool replanning_trigger = false;
+
+Eigen::Vector3d previous_replan_start_pt;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
@@ -42,6 +45,19 @@ void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   current_pos.x() = msg->pose.position.x;
   current_pos.y() = msg->pose.position.y;
   current_pos.z() = msg->pose.position.z;
+
+  double distance_from_last_replan = (previous_replan_start_pt - current_pos).norm();
+  if (distance_from_last_replan > 3)
+  {
+    replanning_trigger = true;
+  }
+
+  double distance_to_goal = (current_pos - target_pos).norm();
+
+  if (distance_to_goal < 0.3)
+  {
+    require_planning = false;
+  }
 }
 
 void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
@@ -126,24 +142,60 @@ int main(int argc, char **argv)
   std::vector<Eigen::Vector3d> prev_path;
 
   std::vector<Corridor> corridor_list;
-  std::vector<Eigen::Vector3d> waypt_list;
+  std::vector<Eigen::Vector3d> waypt_list;         // this is to store waypts found for one iteration
+  std::vector<Eigen::Vector3d> waypt_list_reverse; // waypt_list in reverse order
   std::vector<Eigen::Vector3d> pre_waypt_list;
   std::vector<Eigen::Vector3d> corridor_center;
+  std::vector<Eigen::Vector3d> global_waypt_list; // this is to store waypts for all iteration, will be updated with pop_back after passing waypts
 
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> sample_direction;
 
+  Eigen::Vector3d replanning_start;
+
+  GraphSearch::SearchResult ret;
+
+  int waypoint_completion_counter = 0;
+
+  bool first_plan = true;
+
   while (ros::ok())
   {
-    if (require_planning)
+    if (require_planning || replanning_trigger)
     {
-      GraphSearch::SearchResult ret = gs->search(current_pos, target_pos);
-      std::cout << "A star finished" << std::endl;
+      // replanning is triggered
+      if (replanning_trigger)
+      {
+        // Get replanning start point
+        replanning_start = waypt_list[waypoint_completion_counter];
+        ret = gs->search(replanning_start, target_pos);
+      }
+
+      // received new_goal
+      else
+      {
+        if (first_plan)
+        {
+          Eigen::Vector3d planning_start = current_pos;
+          previous_replan_start_pt = planning_start;
+          ret = gs->search(planning_start, target_pos);
+          first_plan = false;
+        }
+
+        else
+        {
+          replanning_start = waypt_list[waypoint_completion_counter];
+          ret = gs->search(replanning_start, target_pos);
+        }
+      }
+      // GraphSearch::SearchResult ret = gs->search(current_pos, target_pos);
+      // std::cout << "A star returned" << std::endl;
 
       switch (ret)
       {
+
       case GraphSearch::SearchResult::SUCCESS_SUB:
       {
-        std::cout << "success" << std::endl;
+        std::cout << "Search path to sub-goal is successful" << std::endl;
         path_list.clear();
         prev_path.clear();
         waypt_list.clear();
@@ -155,6 +207,21 @@ int main(int argc, char **argv)
         corridor_generator->generateCorridorAlongPath(path_list);
         corridor_list = corridor_generator->getCorridor();
         waypt_list = corridor_generator->getWaypointList();
+        waypt_list_reverse = waypt_list;
+        std::reverse(waypt_list_reverse.begin(), waypt_list_reverse.end());
+
+        if (global_waypt_list.empty()) // first iteration
+        {
+          global_waypt_list.reserve(waypt_list.size());
+          global_waypt_list.insert(global_waypt_list.end(), waypt_list_reverse.begin(), waypt_list_reverse.end());
+        }
+
+        else
+        {
+          global_waypt_list.reserve(waypt_list.size() + global_waypt_list.size());
+          global_waypt_list.insert(global_waypt_list.begin(), waypt_list_reverse.begin(), waypt_list_reverse.end());
+        }
+
         sample_direction = corridor_generator->getSampleDirection();
         corridor_center.clear();
         for (auto corridor : corridor_list)
@@ -180,6 +247,12 @@ int main(int argc, char **argv)
         prev_path.swap(path_list);
         pre_waypt_list.swap(waypt_list);
         require_planning = false;
+        break;
+      }
+
+      case GraphSearch::SearchResult::SUCCESS:
+      {
+
         break;
       }
 

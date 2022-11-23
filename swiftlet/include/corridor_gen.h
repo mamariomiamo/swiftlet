@@ -74,8 +74,8 @@ namespace CorridorGen
                 // std::cout << "overlap_volume " << overlap_volume << std::endl;
             }
 
-            std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
-            std::cout << " overlap " << overlap_volume << " ego_volume " << ego_volume << std::endl;
+            // std::cout << " score " << score << " overlap " << overlap_volume * weighting(1) << " ego_volume " << ego_volume * weighting(0) << std::endl;
+            // std::cout << " overlap " << overlap_volume << " ego_volume " << ego_volume << std::endl;
         }
     };
 

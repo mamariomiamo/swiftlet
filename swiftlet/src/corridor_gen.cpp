@@ -158,14 +158,14 @@ void CorridorGenerator::generateCorridorAlongPath(const std::vector<Eigen::Vecto
         push_back_count++;
         waypoint_list_.emplace_back(intermediate_waypoint);
 
-        // if (pointInCorridor(goal_position_, current_corridor))
-        if (pointNearCorridor(goal_position_, current_corridor))
+        if (pointInCorridor(goal_position_, current_corridor))
+        // if (pointNearCorridor(goal_position_, current_corridor))
         {
             std::cout << "Corridors Generated" << std::endl;
             waypoint_list_.emplace_back(goal_position_);
-            std::cout << "waypt size is " << waypoint_list_.size() << std::endl;
-            std::cout << "number of corridor " << flight_corridor_.size() << std::endl;
-            std::cout << "pushed back times " << push_back_count << std::endl;
+            // std::cout << "waypt size is " << waypoint_list_.size() << std::endl;
+            // std::cout << "number of corridor " << flight_corridor_.size() << std::endl;
+            // std::cout << "pushed back times " << push_back_count << std::endl;
             break;
         }
     }
@@ -680,7 +680,7 @@ const std::vector<Corridor> CorridorGenerator::getCorridor() const
 
 const std::vector<Eigen::Vector3d> CorridorGenerator::getWaypointList() const
 {
-    return waypoint_list_;
+    return waypoint_list_; // waypoints in sequence from start to end
 }
 
 const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> CorridorGenerator::getSampleDirection() const
