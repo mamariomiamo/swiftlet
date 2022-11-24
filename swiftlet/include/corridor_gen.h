@@ -97,15 +97,22 @@ namespace CorridorGen
         std::vector<Corridor> flight_corridor_;
 
     private: // private member variable
-        Eigen::Vector3d initial_position_, goal_position_, local_guide_point_;
+        Eigen::Vector3d initial_position_, 
+            goal_position_, 
+            local_guide_point_;
         double resolution_; // point cloud resolution
         double clearance_;  // drone radius
         double one_third_;
-        int max_sample_;
         double ceiling_; // height limit
         double floor_;   // floor limit
         double goal_pt_margin_;
         double closeness_threshold_; // this will follow the radius of corridor in clutter environment
+
+        int max_sample_;
+
+        bool is_sparse_;
+
+        std::vector<Eigen::Vector4d> no_flight_zone_;
 
         // global guide path
         std::vector<Eigen::Vector3d> guide_path_;
@@ -135,7 +142,10 @@ namespace CorridorGen
         // pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_;
 
     public: // public member function
-        CorridorGenerator(double resolution, double clearance, int max_sample_, double ceiling, double floor_, double goal_pt_margin);
+        CorridorGenerator(
+            double resolution, double clearance, int max_sample_, double ceiling, 
+            double floor_, double goal_pt_margin, bool is_sparse,
+            std::vector<Eigen::Vector4d> no_flight_zone);
         ~CorridorGenerator() = default;
 
         void updatePointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &new_cloud); // yes
