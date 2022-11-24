@@ -24,7 +24,9 @@ int max_sample = 100;
 double ceiling = 3.0;
 double floor_limit = 1.0;
 double goal_pt_margin = 0.2;
-std::shared_ptr<CorridorGen::CorridorGenerator> corridor_generator = std::make_shared<CorridorGen::CorridorGenerator>(resolution, clearance, max_sample, ceiling, floor_limit, goal_pt_margin);
+std::vector<Eigen::Vector4d> no_flight_zone;
+std::shared_ptr<CorridorGen::CorridorGenerator> corridor_generator = 
+  std::make_shared<CorridorGen::CorridorGenerator>(resolution, clearance, max_sample, ceiling, floor_limit, goal_pt_margin, no_flight_zone);
 pcl::PointCloud<pcl::PointXYZ>::Ptr local_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 std::random_device dev;
 std::mt19937 generator(dev());
