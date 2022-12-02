@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common octree filters)
 find_package(octomap REQUIRED)
+add_subdirectory(include/corridor_gen)
 
 find_package(catkin REQUIRED COMPONENTS
     roscpp
@@ -34,11 +35,11 @@ link_directories(${PCL_LIBRARY_DIRS})
 add_executable(mapping
   src/mapping.cpp
   src/graph_search.cpp
-  src/corridor_gen.cpp
   )
 
 target_link_libraries(mapping 
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
   ${PCL_LIBRARIES}
+  corridor_gen
   )
