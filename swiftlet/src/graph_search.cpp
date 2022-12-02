@@ -52,18 +52,27 @@ namespace GraphSearch
     void GraphSearch::getPath(std::vector<Eigen::Vector3d> &path_list)
     {
         GridNodePtr temp = ret_node_;
-        path_list.emplace_back(Index2Coord(temp->index));
+        // because of discretization, exact coordinates of the goal node will be altered
+        // we directly add exact goal node coordinate to the path list
+
+        path_list.emplace_back(sub_goal_);
         while (temp->parent != nullptr)
         {
             temp = temp->parent;
             path_list.emplace_back(Index2Coord(temp->index));
         }
+
+        // change the start node
+        path_list.pop_back();
+        path_list.emplace_back(start_);
+
         reverse(path_list.begin(), path_list.end());
     }
 
     SearchResult GraphSearch::search(const Eigen::Vector3d &start, const Eigen::Vector3d &goal)
     {
         ++current_search_round_;
+
 
         // Check if goal is out of sensing range
         if ((goal - start).norm() > 10)
@@ -79,6 +88,8 @@ namespace GraphSearch
 
         center_ = (sub_goal_ + start) / 2;
 
+        std::cout << "astar subgoal " << sub_goal_.transpose() << "\n";
+
         Eigen::Vector3i start_index, goal_index;
         if (!ConvertToIndexAndAdjustStartEndPoints(start, sub_goal_, start_index, goal_index))
         {
@@ -87,6 +98,7 @@ namespace GraphSearch
         }
 
         goalIdx = goal_index;
+        start_ = start;
 
         std::priority_queue<GridNodePtr, std::vector<GridNodePtr>, GridNodeComparator> empty;
         pq.swap(empty);

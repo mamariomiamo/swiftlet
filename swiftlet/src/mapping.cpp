@@ -8,6 +8,9 @@
 #include <corridor_gen.h>
 #include <pcl/conversions.h>
 #include <random>
+#include <thread>
+#include <mutex>
+
 using CorridorGen::Corridor;
 // global variable
 Eigen::Vector3d current_pos;
@@ -17,6 +20,10 @@ bool test_jps_;
 bool replanning_trigger = false;
 
 Eigen::Vector3d previous_replan_start_pt;
+
+ros::Publisher position_setpoint_nwu_pub;
+
+std::mutex global_waypoint_list_mutex;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
@@ -29,6 +36,13 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr local_cloud(new pcl::PointCloud<pcl::PointXY
 std::random_device dev;
 std::mt19937 generator(dev());
 std::uniform_real_distribution<double> dis(0.0, 1.0);
+std::vector<Eigen::Vector3d> global_waypt_list; // this is to store waypts for all iteration, will be updated with pop_back after passing waypts
+Eigen::Vector3d current_waypt_command, previous_waypt_command;
+bool first_time_send = true;
+bool first_plan_ = true;
+bool init_ = false;
+bool navigation_started_ = false;
+bool receive_new_goal_ = false;
 
 geometry_msgs::Point vect2Point(const Eigen::Vector3d &vect)
 {
@@ -40,34 +54,133 @@ geometry_msgs::Point vect2Point(const Eigen::Vector3d &vect)
   return point;
 }
 
+void waypt_commander_sender_callback(const ros::TimerEvent &)
+{
+  std::lock_guard<std::mutex> guard(global_waypoint_list_mutex);
+  // std::cout << "waypoint send\n";
+
+  // if(!navigation_started_)
+  if (global_waypt_list.empty())
+  {
+    return;
+  }
+
+  else
+  {
+    navigation_started_ = true;
+
+    current_waypt_command = global_waypt_list.back();
+
+    double distance_to_waypoint = (current_pos - current_waypt_command).norm();
+    if (distance_to_waypoint < 0.3) // we are reaching the waypoint
+    {
+      // std::cout << "global_waypt_list size " << global_waypt_list.size() << "\n";
+      if (global_waypt_list.size() > 1)
+      {
+        global_waypt_list.pop_back();
+        current_waypt_command = global_waypt_list.back();
+      }
+    }
+
+    geometry_msgs::Point waypoint = vect2Point(current_waypt_command);
+    geometry_msgs::PoseStamped pos_sp;
+    pos_sp.header.stamp = ros::Time::now();
+    pos_sp.header.frame_id = "map";
+    pos_sp.pose.position = waypoint;
+    pos_sp.pose.orientation.w = 1;
+    pos_sp.pose.orientation.x = 0;
+    pos_sp.pose.orientation.y = 0;
+    pos_sp.pose.orientation.z = 0;
+    position_setpoint_nwu_pub.publish(pos_sp);
+  }
+}
+
 void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
 {
   current_pos.x() = msg->pose.position.x;
   current_pos.y() = msg->pose.position.y;
   current_pos.z() = msg->pose.position.z;
 
-  double distance_from_last_replan = (previous_replan_start_pt - current_pos).norm();
-  if (distance_from_last_replan > 3)
+  if (!init_)
   {
-    replanning_trigger = true;
+    previous_replan_start_pt = current_pos;
+    target_pos = current_pos;
+    init_ = true;
   }
 
-  double distance_to_goal = (current_pos - target_pos).norm();
+  // two scenarios to trigger replanning
+  // (1) if the global_waypt_list size is 1 and the last one is far from the target
+  // (2) if we are some distance away from last replan start point
+  // OR if the path we plan is in collision with obstacles
 
-  if (distance_to_goal < 0.3)
+  if (navigation_started_) // navigation_started_ will be set when UAV first plan a path and send target
   {
-    require_planning = false;
+    if (global_waypt_list.size() < 2 && (global_waypt_list.back() - target_pos).norm() > 1)
+    {
+      std::cout << "left one waypt to go in global_waypt_list and it is far from target_pos, replan trigger\n";
+      replanning_trigger = true;
+      return;
+    }
+
+    else if ((previous_replan_start_pt - current_pos).norm() > 3) // we are some distance away from last replan point
+    {
+
+      // std::cout << "global_waypt_list.front() " << global_waypt_list.front().transpose() << std::endl;
+      // std::cout << "target_pos " << target_pos.transpose() << std::endl;
+
+      // we will not trigger replan if the target_pos is already in the global_waypt_list to be sent
+      if ((current_pos - target_pos).norm() < 0.2)
+      {
+        replanning_trigger = false;
+        // std::cout << "target_pos is already in the global_waypt_list" << std::endl;
+      }
+
+      // target_pos is far away and we will need to trigger replan
+      else
+      {
+        std::cout << "far from last replan point, replan triggered\n";
+        replanning_trigger = true;
+        return;
+      }
+    }
+
+    else // we have enought waypoints in global_waypt_list and we are not far away from last replan point
+         // i.e. half way executing the waypoint list
+    {
+      // std::cout << "far from last replan point, replan triggered\n";
+      replanning_trigger = false;
+    }
   }
+
+  else
+  {
+    replanning_trigger = false;
+    return;
+  }
+
+  // else
+  // {
+  //   require_planning = false;
+  // }
 }
 
 void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
 {
+  receive_new_goal_ = true;
   target_pos.x() = msg->pose.position.x;
   target_pos.y() = msg->pose.position.y;
   target_pos.z() = msg->pose.position.z;
 
   std::cout << "Goal received: " << target_pos.transpose() << std::endl;
-  require_planning = true;
+
+  if (first_plan_)
+  {
+    std::cout << "first target received\n";
+    require_planning = true;
+    first_plan_ = false;
+  }
+
+  // navigation_started_ = true;
 }
 
 void cloudCallback(const sensor_msgs::PointCloud2ConstPtr &cloud_in)
@@ -134,6 +247,15 @@ int main(int argc, char **argv)
   ros::Publisher corridor_vis_pub = nh.advertise<visualization_msgs::Marker>("corridor", 100);
   ros::Publisher corridors_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("corridors", 100);
   ros::Publisher sample_direction_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("sample_direction", 100);
+
+  position_setpoint_nwu_pub = nh.advertise<geometry_msgs::PoseStamped>("/uav/ref_pose/nwu", 100);
+
+  // boost::function<void(ros::Timer & timer_event, ros::Publisher * publisher)> timer_callback = [&position_setpoint_nwu_pub](ros::Timer &timer_event, ros::Publisher *publisher)
+  // {
+  //   waypt_commander_sender_callback(timer_event, publisher);
+  // };
+
+  ros::Timer waypt_command_sender = nh.createTimer(ros::Duration(0.01), waypt_commander_sender_callback);
   // ros::spin();
 
   ros::Rate rate(20);
@@ -146,7 +268,6 @@ int main(int argc, char **argv)
   std::vector<Eigen::Vector3d> waypt_list_reverse; // waypt_list in reverse order
   std::vector<Eigen::Vector3d> pre_waypt_list;
   std::vector<Eigen::Vector3d> corridor_center;
-  std::vector<Eigen::Vector3d> global_waypt_list; // this is to store waypts for all iteration, will be updated with pop_back after passing waypts
 
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> sample_direction;
 
@@ -157,34 +278,43 @@ int main(int argc, char **argv)
   int waypoint_completion_counter = 0;
 
   bool first_plan = true;
-
   while (ros::ok())
   {
-    if (require_planning || replanning_trigger)
-    {
-      // replanning is triggered
-      if (replanning_trigger)
-      {
-        // Get replanning start point
-        replanning_start = waypt_list[waypoint_completion_counter];
-        ret = gs->search(replanning_start, target_pos);
-      }
 
-      // received new_goal
-      else
+    if (receive_new_goal_ || replanning_trigger)
+    {
+      if (receive_new_goal_)
       {
-        if (first_plan)
+        std::lock_guard<std::mutex> guard(global_waypoint_list_mutex);
+        // Get replanning start point
+        if (global_waypt_list.empty()) // first time plan
         {
-          Eigen::Vector3d planning_start = current_pos;
-          previous_replan_start_pt = planning_start;
-          ret = gs->search(planning_start, target_pos);
-          first_plan = false;
+          replanning_start = previous_replan_start_pt; // current hovering position
+          std::cout << "first time plan: replanning_start " << replanning_start.transpose() << "\n";
         }
 
         else
         {
-          replanning_start = waypt_list[waypoint_completion_counter];
+          replanning_start = global_waypt_list.back();
+          previous_replan_start_pt = replanning_start;
+        }
+
+        ret = gs->search(replanning_start, target_pos);
+
+        receive_new_goal_ = false;
+      }
+
+      else if (replanning_trigger)
+      {
+        // replanning is triggered
+        {
+          std::lock_guard<std::mutex> guard(global_waypoint_list_mutex);
+          // Get replanning start point
+          replanning_start = global_waypt_list.back();
+          previous_replan_start_pt = replanning_start;
           ret = gs->search(replanning_start, target_pos);
+
+          replanning_trigger = false;
         }
       }
       // GraphSearch::SearchResult ret = gs->search(current_pos, target_pos);
@@ -204,23 +334,30 @@ int main(int argc, char **argv)
         gs->getPath(path_list);
         ros::Time before_gen = ros::Time::now();
         // Corridor test_corridor = corridor_generator->GenerateOneSphere(path_list.front());
-        corridor_generator->generateCorridorAlongPath(path_list);
+        bool generate_success = corridor_generator->generateCorridorAlongPath(path_list);
         corridor_list = corridor_generator->getCorridor();
         waypt_list = corridor_generator->getWaypointList();
         waypt_list_reverse = waypt_list;
         std::reverse(waypt_list_reverse.begin(), waypt_list_reverse.end());
-
+        global_waypoint_list_mutex.lock();
         if (global_waypt_list.empty()) // first iteration
         {
-          global_waypt_list.reserve(waypt_list.size());
+          // global_waypt_list.reserve(waypt_list_reverse.size());
+          std::cout << "first iteration: global_waypt_list is empty " << std::endl;
           global_waypt_list.insert(global_waypt_list.end(), waypt_list_reverse.begin(), waypt_list_reverse.end());
         }
 
         else
         {
-          global_waypt_list.reserve(waypt_list.size() + global_waypt_list.size());
-          global_waypt_list.insert(global_waypt_list.begin(), waypt_list_reverse.begin(), waypt_list_reverse.end());
+          // global_waypt_list.reserve(waypt_list_reverse.size() + global_waypt_list.size());
+          // global_waypt_list.insert(global_waypt_list.end(), waypt_list_reverse.begin(), waypt_list_reverse.end());
+          global_waypt_list.clear();
+          global_waypt_list = waypt_list_reverse;
         }
+
+        std::for_each(waypt_list.begin(), waypt_list.end(), [](auto val)
+                      { std::cout << val.transpose() << "\n"; });
+        global_waypoint_list_mutex.unlock();
 
         sample_direction = corridor_generator->getSampleDirection();
         corridor_center.clear();
@@ -246,7 +383,8 @@ int main(int argc, char **argv)
         visualizeCorridors(corridor_list, &corridors_vis_pub);
         prev_path.swap(path_list);
         pre_waypt_list.swap(waypt_list);
-        require_planning = false;
+        // require_planning = false;
+        ret = GraphSearch::SearchResult::SUCCESS;
         break;
       }
 
@@ -260,6 +398,7 @@ int main(int argc, char **argv)
         break;
       }
     }
+
     ros::spinOnce();
     rate.sleep();
   }
@@ -292,7 +431,7 @@ void visualizeCorridor(const Corridor &corridor, ros::Publisher *publisher)
 void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *publisher)
 {
   visualization_msgs::MarkerArray corridors_array;
-  std::cout << corridors.size() << std::endl;
+  // std::cout << corridors.size() << std::endl;
   corridors_array.markers.reserve(corridors.size());
   int index = 0;
   for (auto corridor : corridors)
@@ -321,11 +460,11 @@ void visualizeCorridors(const std::vector<Corridor> &corridors, ros::Publisher *
 
     corridors_array.markers.emplace_back(corridor_sphere);
 
-    std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
+    // std::cout << "position is: " << position.transpose() << " radius is: " << radius << std::endl;
     index++;
   }
 
-  std::cout << "corridor marker array size is: " << corridors_array.markers.size() << std::endl;
+  // std::cout << "corridor marker array size is: " << corridors_array.markers.size() << std::endl;
 
   publisher->publish(corridors_array);
 }
