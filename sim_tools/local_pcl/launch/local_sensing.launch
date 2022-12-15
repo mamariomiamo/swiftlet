@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="local_pcl" type="pcl_render_node" name="pcl_render_node">
+        <param name="sensing_horizon" value="5.0"/>
+        <param name="sensing_rate" value="30.0"/>
+        <param name="estimation_rate" value="30.0"/>
+        <param name="map/x_size" value="30.0"/>
+        <param name="map/y_size" value="30.0"/>
+        <param name="map/z_size" value="3.0"/>
+        <remap from="~global_map" to="/map_generator/global_cloud"/>
+        <remap from="~odometry" to="/drone0/global_nwu_odom"/>
+        <remap from="~local_cloud" to="local_pointcloud"/>
+        <!-- <remap from="~local_pointcloud" to="local_cloud"/> -->
+    </node>
+</launch>
