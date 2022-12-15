@@ -360,9 +360,10 @@ inline Eigen::Vector3i GridMap::infBufIdx2GlobalIdx(size_t address)
 
 inline int GridMap::getOccupancy(Eigen::Vector3d pos)
 {
-  if (!isInBuf(pos))
+  if (!isInBuf(pos)) // if it is not in buffer then it is considered as free
     return 0;
 
+  // if it is outside virtual wall, we return -1, which will be casted to true
   if (mp_.enable_virtual_walll_ && (pos(2) >= mp_.virtual_ceil_ || pos(2) <= mp_.virtual_ground_))
     return -1;
 

@@ -458,7 +458,7 @@ bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vect
       }
 
       occ = checkOccupancy(Index2Coord(start_idx));
-      if (occ == -1)
+      if (occ == -1) // virtual wall is enabled and z position is outside (above ceiling or below ground)
       {
         ROS_WARN("[Astar] Start point outside the map region.");
         return false;
@@ -479,7 +479,7 @@ bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vect
       }
 
       occ = checkOccupancy(Index2Coord(start_idx));
-      if (occ == -1)
+      if (occ == -1)  // virtual wall is enabled and z position is outside (above ceiling or below ground)
       {
         ROS_WARN("[Astar] End point outside the map region.");
         return false;
