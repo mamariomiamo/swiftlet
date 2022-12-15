@@ -8,8 +8,8 @@
 
     <node pkg="laser_simulator" type="tf2_listener" name="my_tf2_listener" output="screen">
         <param name="cloud_in_topic" value="/laser_simulator/local_pointcloud"/>
-        <param name="cloud_out_topic" value="/laser_simulator/local_cloud_world"/>
+        <!-- <param name="cloud_out_topic" value="/laser_simulator/local_cloud_world"/> -->
+        <param name="cloud_out_topic" value="/local_pointcloud"/>
         <param name="publish_rate" value="20"/>
-        
     </node>
 </launch>

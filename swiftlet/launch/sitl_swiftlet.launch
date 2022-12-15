@@ -89,11 +89,4 @@
     <!-- lidar sim -->
     <include file="$(find swiftlet)/launch/swiftlet_lidar_sim.launch"></include>
 
-    <!-- <arg name="odom_topic" value="/drone0/global_nwu_odom" />
-    <arg name="cloud_topic" value="/laser_simulator/local_pointcloud" />
-
-    <include file="$(find swiftlet)/launch/sitl_occupancy.launch">
-        <arg name="odometry_topic" value="$(arg odom_topic)" />
-        <arg name="point_cloud_topic" value="$(arg cloud_topic)" />
-    </include> -->
 </launch>
