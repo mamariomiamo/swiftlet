@@ -90,12 +90,13 @@ namespace GraphSearch
     class GraphSearch
     {
     public:
-        GraphSearch(int map_size, double map_resolution, bool use_jps);
+        GraphSearch(int map_size, double map_resolution, bool use_jps, bool enable_virtual_ceiling);
         ~GraphSearch();
 
         SearchResult search(const Eigen::Vector3d &start, const Eigen::Vector3d &goal);
 
         void initMap(const GridMap::Ptr &map_obj);
+        void setCeiling(double ceiling_height);
         // void initMap(const auto &map_obj);
 
         void getPath(std::vector<Eigen::Vector3d> &path_list);
@@ -114,6 +115,8 @@ namespace GraphSearch
         double map_resolution_, map_resolution_inverse_;
         const double tie_breaker_ = 1.0 + 1.0 / 10000;
         bool use_jps_;
+        bool enable_virtual_ceiling_;
+        double ceiling_height_;
 
         Eigen::Vector3i map_size_, pool_size_, center_index_;
         Eigen::Vector3i goalIdx;
@@ -126,6 +129,8 @@ namespace GraphSearch
         virtual void getSuccessorNode(const GridNodePtr &current_node, const GridNodePtr &goal_node);
 
         bool ConvertToIndexAndAdjustStartEndPoints(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, Eigen::Vector3i &start_idx, Eigen::Vector3i &end_idx);
+
+        void CheckOutOfBound(Eigen::Vector3d &position);
 
         inline int checkOccupancy(Eigen::Vector3d node_pos)
         {
@@ -145,8 +150,8 @@ namespace GraphSearch
         inline bool Coord2Index(const Eigen::Vector3d &pos, Eigen::Vector3i &index)
         {
             index = ((pos - center_) * map_resolution_inverse_ + Eigen::Vector3d(0.5, 0.5, 0.5)).cast<int>() + center_index_;
-            std::cout << "coord2index: " << index.transpose() << std::endl;
-            std::cout << "pos: " << pos.transpose() << std::endl;
+            // std::cout << "coord2index: " << index.transpose() << std::endl;
+            // std::cout << "pos: " << pos.transpose() << std::endl;
             if (index(0) < 0)
             {
                 index(0) = 1;
@@ -224,7 +229,7 @@ namespace GraphSearch
     public:
         JPS3DNeib *jn3d;
 
-        JPS(int map_size, double map_resolution, bool use_jps) : GraphSearch(map_size, map_resolution, use_jps)
+        JPS(int map_size, double map_resolution, bool use_jps) : GraphSearch(map_size, map_resolution, use_jps, true)
         {
             jn3d = new JPS3DNeib();
         };

@@ -3,8 +3,8 @@ namespace GraphSearch
 {
     constexpr int JPS3DNeib::nsz[4][2]; // definition
 
-    GraphSearch::GraphSearch(int map_size, double map_resolution, bool use_jps)
-        : map_resolution_(map_resolution), use_jps_(use_jps)
+    GraphSearch::GraphSearch(int map_size, double map_resolution, bool use_jps, bool enable_virtual_ceiling)
+        : map_resolution_(map_resolution), use_jps_(use_jps), enable_virtual_ceiling_(enable_virtual_ceiling)
     {
 
         map_resolution_inverse_ = 1 / map_resolution_;
@@ -31,6 +31,11 @@ namespace GraphSearch
         {
             delete grid;
         }
+    }
+
+    void GraphSearch::setCeiling(double ceiling_height)
+    {
+        ceiling_height_ = ceiling_height;
     }
 
     // void GraphSearch::initMap(const auto &map_obj)
@@ -73,7 +78,6 @@ namespace GraphSearch
     {
         ++current_search_round_;
 
-
         // Check if goal is out of sensing range
         if ((goal - start).norm() > 10)
         {
@@ -86,19 +90,23 @@ namespace GraphSearch
             sub_goal_ = goal;
         }
 
-        center_ = (sub_goal_ + start) / 2;
+        Eigen::Vector3d start_pos = start;
+        CheckOutOfBound(start_pos);
+        CheckOutOfBound(sub_goal_);
+
+        center_ = (sub_goal_ + start_pos) / 2;
 
         std::cout << "astar subgoal " << sub_goal_.transpose() << "\n";
 
         Eigen::Vector3i start_index, goal_index;
-        if (!ConvertToIndexAndAdjustStartEndPoints(start, sub_goal_, start_index, goal_index))
+        if (!ConvertToIndexAndAdjustStartEndPoints(start_pos, sub_goal_, start_index, goal_index))
         {
             ROS_ERROR("Unable to handle the initial or end point, force return!");
             return SearchResult::INIT_ERR;
         }
 
         goalIdx = goal_index;
-        start_ = start;
+        start_ = start_pos;
 
         std::priority_queue<GridNodePtr, std::vector<GridNodePtr>, GridNodeComparator> empty;
         pq.swap(empty);
@@ -158,7 +166,7 @@ namespace GraphSearch
         int occ;
         if (checkOccupancy(Index2Coord(start_idx)))
         {
-            ROS_WARN("Start point is insdide an obstacle.");
+            ROS_WARN("Start point is inside an obstacle or out of bound.");
             do
             {
                 start_pt = (start_pt - end_pt).normalized() * map_resolution_ + start_pt; // vector from end to start
@@ -171,7 +179,7 @@ namespace GraphSearch
                 occ = checkOccupancy(Index2Coord(start_idx));
                 if (occ == -1)
                 {
-                    ROS_WARN("[Astar] Start point outside the map region.");
+                    ROS_WARN("[Astar] Start point outside the map region."); // virtual wall is enabled and z position is outside (above ceiling or below ground)
                     return false;
                 }
             } while (occ);
@@ -192,13 +200,21 @@ namespace GraphSearch
                 occ = checkOccupancy(Index2Coord(start_idx));
                 if (occ == -1)
                 {
-                    ROS_WARN("[Astar] End point outside the map region.");
+                    ROS_WARN("[Astar] End point outside the map region."); // virtual wall is enabled and z position is outside (above ceiling or below ground)
                     return false;
                 }
             } while (checkOccupancy(Index2Coord(end_idx)));
         }
 
         return true;
+    }
+
+    void GraphSearch::CheckOutOfBound(Eigen::Vector3d &position)
+    {
+        if (position.z() > ceiling_height_)
+        {
+            position.z() = ceiling_height_ / 2;
+        }
     }
 
     void GraphSearch::getSuccessorNode(const GridNodePtr &current_node, const GridNodePtr &goal_node)
@@ -239,7 +255,7 @@ namespace GraphSearch
                     // update node's query round
                     neighbor_node->query_rounds = current_search_round_;
 
-                    // check if node is occupied
+                    // check if node is occupied or out of bound
                     if (checkOccupancy(Index2Coord(neighbor_node->index)))
                     {
                         continue;

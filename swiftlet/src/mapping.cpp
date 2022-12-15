@@ -118,6 +118,7 @@ void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
     if (global_waypt_list.size() < 2 && (global_waypt_list.back() - target_pos).norm() > 1)
     {
       std::cout << "left one waypt to go in global_waypt_list and it is far from target_pos, replan trigger\n";
+      std::cout << "target_pos is " << target_pos.transpose() << std::endl;
       replanning_trigger = true;
       return;
     }
@@ -170,6 +171,10 @@ void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   target_pos.x() = msg->pose.position.x;
   target_pos.y() = msg->pose.position.y;
   target_pos.z() = msg->pose.position.z;
+  if(target_pos.z() > ceiling)
+  {
+    target_pos.z() = ceiling/2;
+  }
 
   std::cout << "Goal received: " << target_pos.transpose() << std::endl;
 
@@ -219,6 +224,7 @@ int main(int argc, char **argv)
   int map_size_;
   nh.getParam("astar_map_size", map_size_);
   nh.getParam("test_jps", test_jps_);
+  nh.getParam("ceiling", ceiling);
   std::cout << "map_size is " << map_size_ << std::endl;
   Eigen::Vector3i map_size{map_size_, map_size_, map_size_}; // what is the resolution of the map? 0.1m should be same as
 
@@ -231,7 +237,8 @@ int main(int argc, char **argv)
   std::cout << "step size is " << step_size << std::endl;
 
   // instantiate graphsearch object
-  std::shared_ptr<GraphSearch::GraphSearch> gs = std::make_shared<GraphSearch::GraphSearch>(map_size_, step_size, false);
+  std::shared_ptr<GraphSearch::GraphSearch> gs = std::make_shared<GraphSearch::GraphSearch>(map_size_, step_size, false, true);
+  gs->setCeiling(ceiling);
   gs->initMap(grid_map_);
 
   std::shared_ptr<GraphSearch::JPS> jps = std::make_shared<GraphSearch::JPS>(map_size_, step_size, true);
@@ -239,7 +246,7 @@ int main(int argc, char **argv)
 
   ros::Subscriber pose_nwu_sub_ = nh.subscribe("/drone0/global_nwu", 10, poseCallback);
   ros::Subscriber target_nwu_sub_ = nh.subscribe("/goal", 10, targetCallback);
-  ros::Subscriber local_cloud_sub_ = nh.subscribe("/laser_simulator/local_cloud_world", 10, cloudCallback);
+  ros::Subscriber local_cloud_sub_ = nh.subscribe("/local_pointcloud", 10, cloudCallback);
   ros::Publisher vis_pub = nh.advertise<visualization_msgs::MarkerArray>("Astar_node", 100);
   ros::Publisher corridor_center_pub = nh.advertise<visualization_msgs::MarkerArray>("corridor_center", 100);
   ros::Publisher waypt_pub = nh.advertise<visualization_msgs::MarkerArray>("waypts", 100);
@@ -355,8 +362,8 @@ int main(int argc, char **argv)
           global_waypt_list = waypt_list_reverse;
         }
 
-        std::for_each(waypt_list.begin(), waypt_list.end(), [](auto val)
-                      { std::cout << val.transpose() << "\n"; });
+        // std::for_each(waypt_list.begin(), waypt_list.end(), [](auto val)
+        //               { std::cout << val.transpose() << "\n"; });
         global_waypoint_list_mutex.unlock();
 
         sample_direction = corridor_generator->getSampleDirection();
