@@ -101,12 +101,12 @@ void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   current_pos.y() = msg->pose.position.y;
   current_pos.z() = msg->pose.position.z;
 
-  if (!init_)
-  {
-    previous_replan_start_pt = current_pos;
-    target_pos = current_pos;
-    init_ = true;
-  }
+  // if (!init_)
+  // {
+  //   previous_replan_start_pt = current_pos;
+  //   target_pos = current_pos;
+  //   init_ = true;
+  // }
 
   // two scenarios to trigger replanning
   // (1) if the global_waypt_list size is 1 and the last one is far from the target
@@ -181,6 +181,7 @@ void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   if (first_plan_)
   {
     std::cout << "first target received\n";
+    previous_replan_start_pt = current_pos;
     require_planning = true;
     first_plan_ = false;
   }
@@ -560,7 +561,7 @@ void deletePrePointLists(const std::vector<Eigen::Vector3d> &path_list, ros::Pub
     node.scale.x = 0.1;
     node.scale.y = 0.1;
     node.scale.z = 0.1;
-    node.color.a = 1.0; // Don't forget to set the alpha!
+    node.color.a = 0.0; // Don't forget to set the alpha!
     node.color.r = 0.0;
     node.color.g = 1.0;
     node.color.b = 0.0;
@@ -601,7 +602,7 @@ void deletePrePath(const std::vector<Eigen::Vector3d> &path_list, ros::Publisher
   line_strip.action = visualization_msgs::Marker::DELETE;
   line_strip.scale.x = 0.5;
   line_strip.color.r = 1.0;
-  line_strip.color.a = 1.0;
+  line_strip.color.a = 0.0;
 
   line_strip.points.clear();
 
