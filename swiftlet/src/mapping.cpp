@@ -95,24 +95,8 @@ void waypt_commander_sender_callback(const ros::TimerEvent &)
   }
 }
 
-void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
+void replan_timer_callback(const ros::TimerEvent &)
 {
-  current_pos.x() = msg->pose.position.x;
-  current_pos.y() = msg->pose.position.y;
-  current_pos.z() = msg->pose.position.z;
-
-  // if (!init_)
-  // {
-  //   previous_replan_start_pt = current_pos;
-  //   target_pos = current_pos;
-  //   init_ = true;
-  // }
-
-  // two scenarios to trigger replanning
-  // (1) if the global_waypt_list size is 1 and the last one is far from the target
-  // (2) if we are some distance away from last replan start point
-  // OR if the path we plan is in collision with obstacles
-
   if (navigation_started_) // navigation_started_ will be set when UAV first plan a path and send target
   {
     if (global_waypt_list.size() < 2 && (global_waypt_list.back() - target_pos).norm() > 1)
@@ -158,6 +142,25 @@ void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
     replanning_trigger = false;
     return;
   }
+}
+
+void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
+{
+  current_pos.x() = msg->pose.position.x;
+  current_pos.y() = msg->pose.position.y;
+  current_pos.z() = msg->pose.position.z;
+
+  // if (!init_)
+  // {
+  //   previous_replan_start_pt = current_pos;
+  //   target_pos = current_pos;
+  //   init_ = true;
+  // }
+
+  // two scenarios to trigger replanning
+  // (1) if the global_waypt_list size is 1 and the last one is far from the target
+  // (2) if we are some distance away from last replan start point
+  // OR if the path we plan is in collision with obstacles
 
   // else
   // {
@@ -171,9 +174,9 @@ void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   target_pos.x() = msg->pose.position.x;
   target_pos.y() = msg->pose.position.y;
   target_pos.z() = msg->pose.position.z;
-  if(target_pos.z() > ceiling)
+  if (target_pos.z() > ceiling)
   {
-    target_pos.z() = ceiling/2;
+    target_pos.z() = ceiling / 2;
   }
 
   std::cout << "Goal received: " << target_pos.transpose() << std::endl;
@@ -264,6 +267,7 @@ int main(int argc, char **argv)
   // };
 
   ros::Timer waypt_command_sender = nh.createTimer(ros::Duration(0.01), waypt_commander_sender_callback);
+  ros::Timer replan_timer = nh.createTimer(ros::Duration(0.1), replan_timer_callback);
   // ros::spin();
 
   ros::Rate rate(20);

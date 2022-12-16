@@ -7,6 +7,7 @@ find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common octree filters)
 find_package(octomap REQUIRED)
 add_subdirectory(include/corridor_gen)
+add_subdirectory(include/graph_search)
 
 find_package(catkin REQUIRED COMPONENTS
     roscpp
@@ -34,7 +35,7 @@ link_directories(${PCL_LIBRARY_DIRS})
 
 add_executable(mapping
   src/mapping.cpp
-  src/graph_search.cpp
+  # src/graph_search.cpp
   )
 
 target_link_libraries(mapping 
@@ -42,4 +43,5 @@ target_link_libraries(mapping
   ${OCTOMAP_LIBRARIES}
   ${PCL_LIBRARIES}
   corridor_gen
+  graph_search
   )
