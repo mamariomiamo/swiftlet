@@ -29,8 +29,8 @@
         <arg name="ID" value="0" />
         <arg name="fcu_url" default="udp://:14540@localhost:14580" />
         <arg name="xid" value="drone0" />
-        <arg name="x" value="-5" />
-        <arg name="y" value="-5" />
+        <arg name="x" value="-15" />
+        <arg name="y" value="-0" />
         <arg name="z" value="0" />
 
 

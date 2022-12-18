@@ -27,7 +27,7 @@ std::mutex global_waypoint_list_mutex;
 
 double resolution = 0.1;
 double clearance = 0.2; // radius of drone
-int max_sample = 100;
+int max_sample = 500;
 double ceiling = 3.0;
 double floor_limit = 1.0;
 double goal_pt_margin = 0.2;
@@ -43,6 +43,20 @@ bool first_plan_ = true;
 bool init_ = false;
 bool navigation_started_ = false;
 bool receive_new_goal_ = false;
+Eigen::Vector3d replanning_start;
+int replanning_index_ = 0;
+
+std::vector<Corridor> corridor_list;
+
+enum ReplanStatus
+{
+  kNoReplan = 0,
+  kCollisionReplan, // if corridor is collision, we replan
+  kPeriodicReplan,  // if we are far away from previous replan point
+                    // and our plan does not contain goal position, we replan
+};
+
+ReplanStatus replan_status_ = ReplanStatus::kNoReplan;
 
 geometry_msgs::Point vect2Point(const Eigen::Vector3d &vect)
 {
@@ -99,32 +113,61 @@ void replan_timer_callback(const ros::TimerEvent &)
 {
   if (navigation_started_) // navigation_started_ will be set when UAV first plan a path and send target
   {
+
+    // Replan scenario 1:
+    // Corridor generated in the previous iteration is unsafe
+    if (!corridor_list.empty())
+    {
+      auto ret = corridor_generator->CheckCorridorSafety(corridor_list);
+      auto [safe, last_safe_index, last_safe_center] = ret;
+
+      if (!safe)
+      {
+        ROS_ERROR("UNSAFE");
+        std::cout << "last_safe_index: " << last_safe_index << " replan from: " << last_safe_center.transpose() << std::endl;
+        replanning_trigger = true;
+        replanning_start = last_safe_center;
+        previous_replan_start_pt = replanning_start;
+        replanning_index_ = last_safe_index;
+        // todo: after setting the replan start, waypoint list will also be changed.
+        //  need to check how to update the commands accordingly.
+
+        return;
+      }
+    }
+
+    // Replan scenario 2:
+    // Current global waypt list left with one waypoint but we still far from target
     if (global_waypt_list.size() < 2 && (global_waypt_list.back() - target_pos).norm() > 1)
     {
       std::cout << "left one waypt to go in global_waypt_list and it is far from target_pos, replan trigger\n";
       std::cout << "target_pos is " << target_pos.transpose() << std::endl;
       replanning_trigger = true;
+      replanning_start = global_waypt_list.back();
+      previous_replan_start_pt = replanning_start;
       return;
     }
 
     else if ((previous_replan_start_pt - current_pos).norm() > 3) // we are some distance away from last replan point
     {
 
-      // std::cout << "global_waypt_list.front() " << global_waypt_list.front().transpose() << std::endl;
-      // std::cout << "target_pos " << target_pos.transpose() << std::endl;
-
       // we will not trigger replan if the target_pos is already in the global_waypt_list to be sent
-      if ((current_pos - target_pos).norm() < 0.2)
+      if ((global_waypt_list.back() - target_pos).norm() < 0.02)
       {
         replanning_trigger = false;
+        ROS_INFO("Target position in waypoint list");
         // std::cout << "target_pos is already in the global_waypt_list" << std::endl;
       }
 
+      // Replan scenario 3:
       // target_pos is far away and we will need to trigger replan
       else
       {
+        ROS_WARN("FAR FROM LAST REPLAN POINT");
         std::cout << "far from last replan point, replan triggered\n";
         replanning_trigger = true;
+        replanning_start = global_waypt_list.back();
+        previous_replan_start_pt = replanning_start;
         return;
       }
     }
@@ -149,23 +192,6 @@ void poseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
   current_pos.x() = msg->pose.position.x;
   current_pos.y() = msg->pose.position.y;
   current_pos.z() = msg->pose.position.z;
-
-  // if (!init_)
-  // {
-  //   previous_replan_start_pt = current_pos;
-  //   target_pos = current_pos;
-  //   init_ = true;
-  // }
-
-  // two scenarios to trigger replanning
-  // (1) if the global_waypt_list size is 1 and the last one is far from the target
-  // (2) if we are some distance away from last replan start point
-  // OR if the path we plan is in collision with obstacles
-
-  // else
-  // {
-  //   require_planning = false;
-  // }
 }
 
 void targetCallback(const geometry_msgs::PoseStampedConstPtr &msg)
@@ -267,7 +293,7 @@ int main(int argc, char **argv)
   // };
 
   ros::Timer waypt_command_sender = nh.createTimer(ros::Duration(0.01), waypt_commander_sender_callback);
-  ros::Timer replan_timer = nh.createTimer(ros::Duration(0.1), replan_timer_callback);
+  ros::Timer replan_timer = nh.createTimer(ros::Duration(0.5), replan_timer_callback);
   // ros::spin();
 
   ros::Rate rate(20);
@@ -275,15 +301,12 @@ int main(int argc, char **argv)
   std::vector<Eigen::Vector3d> path_list;
   std::vector<Eigen::Vector3d> prev_path;
 
-  std::vector<Corridor> corridor_list;
   std::vector<Eigen::Vector3d> waypt_list;         // this is to store waypts found for one iteration
   std::vector<Eigen::Vector3d> waypt_list_reverse; // waypt_list in reverse order
   std::vector<Eigen::Vector3d> pre_waypt_list;
   std::vector<Eigen::Vector3d> corridor_center;
 
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> sample_direction;
-
-  Eigen::Vector3d replanning_start;
 
   GraphSearch::SearchResult ret;
 
@@ -295,6 +318,7 @@ int main(int argc, char **argv)
 
     if (receive_new_goal_ || replanning_trigger)
     {
+      // When there is a new goal sent by the user
       if (receive_new_goal_)
       {
         std::lock_guard<std::mutex> guard(global_waypoint_list_mutex);
@@ -316,21 +340,20 @@ int main(int argc, char **argv)
         receive_new_goal_ = false;
       }
 
+      // When replanning is triggered
       else if (replanning_trigger)
       {
         // replanning is triggered
         {
           std::lock_guard<std::mutex> guard(global_waypoint_list_mutex);
-          // Get replanning start point
-          replanning_start = global_waypt_list.back();
-          previous_replan_start_pt = replanning_start;
+          // Replanning start point is updated in the replan_timer_callback
+          // replanning_start = global_waypt_list.back();
+          // previous_replan_start_pt = replanning_start;
           ret = gs->search(replanning_start, target_pos);
 
           replanning_trigger = false;
         }
       }
-      // GraphSearch::SearchResult ret = gs->search(current_pos, target_pos);
-      // std::cout << "A star returned" << std::endl;
 
       switch (ret)
       {
@@ -341,13 +364,19 @@ int main(int argc, char **argv)
         path_list.clear();
         prev_path.clear();
         waypt_list.clear();
-        pre_waypt_list.clear();
+        // pre_waypt_list.clear();
 
         gs->getPath(path_list);
         ros::Time before_gen = ros::Time::now();
         // Corridor test_corridor = corridor_generator->GenerateOneSphere(path_list.front());
         bool generate_success = corridor_generator->generateCorridorAlongPath(path_list);
         corridor_list = corridor_generator->getCorridor();
+
+        // std::for_each(corridor_list.begin(), corridor_list.end(), [](auto corridor)
+        //               { 
+        //                 auto [center, radius] = corridor;
+        //                 std::cout << "center: " << center.transpose() << " radius: " << radius << std::endl; });
+
         waypt_list = corridor_generator->getWaypointList();
         waypt_list_reverse = waypt_list;
         std::reverse(waypt_list_reverse.begin(), waypt_list_reverse.end());
@@ -363,8 +392,18 @@ int main(int argc, char **argv)
         {
           // global_waypt_list.reserve(waypt_list_reverse.size() + global_waypt_list.size());
           // global_waypt_list.insert(global_waypt_list.end(), waypt_list_reverse.begin(), waypt_list_reverse.end());
-          global_waypt_list.clear();
-          global_waypt_list = waypt_list_reverse;
+
+          // need to handle better
+          //
+          std::vector<Eigen::Vector3d> global_waypt_temp = global_waypt_list;
+          std::reverse(global_waypt_temp.begin(), global_waypt_temp.end());
+          global_waypt_temp.resize(replanning_index_ + 1);
+          global_waypt_temp.insert(global_waypt_temp.end(), waypt_list.begin(), waypt_list.end());
+          std::reverse(global_waypt_temp.begin(), global_waypt_temp.end());
+          global_waypt_list.swap(global_waypt_temp);
+          std::for_each(global_waypt_list.begin(), global_waypt_list.end(), [](auto val)
+                        { std::cout << val.transpose() << "\n"; });
+          // global_waypt_list = waypt_list_reverse;
         }
 
         // std::for_each(waypt_list.begin(), waypt_list.end(), [](auto val)
