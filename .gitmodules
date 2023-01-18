@@ -24,3 +24,6 @@
 	path = swiftlet/include/corridor_gen
 	url = git@github.com:mamariomiamo/corridor_gen.git
 	branch = main
+[submodule "utilities/quadrotor_msgs"]
+	path = utilities/quadrotor_msgs
+	url = git@github.com:mamariomiamo/quadrotor_msgs.git
