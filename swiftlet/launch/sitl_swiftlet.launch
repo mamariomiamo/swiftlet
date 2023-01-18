@@ -51,6 +51,7 @@
             <!-- <arg name="video_uri" value="$(eval 5600 + arg('ID'))"/> -->
             <!-- <arg name="mavlink_cam_udp_port" value="$(eval 14530 + arg('ID'))"/> -->
         </include>
+
         <!-- Mavros -->
         <include file="$(find mavros)/launch/px4.launch">
             <arg name="fcu_url" value="$(arg fcu_url)" />
@@ -58,35 +59,38 @@
             <arg name="tgt_system" value="$(eval 1 + arg('ID'))" />
             <arg name="tgt_component" value="1" />
         </include>
-
+        
+        <!-- PX4 offboard control -->
         <node pkg="px4_offb" type="px4_offb_node" name="offboard_node" output="screen">
             <param name="WP_Location" value="$(find px4_offb)/waypoints/waypoints.txt" />
             <param name="arm_safety_check" value="false" />
             <param name="user_give_goal" value="false" />
             <param name="uav_id" value="$(arg xid)" />
-            <param name="astar_waypt_test" value="true"/>
-
+            <param name="astar_waypt_test" value="true" />
         </node>
-
+        
+        <!-- static transform between drone local frame to global map/world frame -->
         <node pkg="tf2_ros"
             type="static_transform_publisher"
             name="global_to_local"
             args="$(arg x) $(arg y) $(arg z) 0.0 0.0 -0.7071068 0.7071068 /map /drone0_local_enu_origin" />
         <!-- rotation part should be kept the same since it described the rotation from nwu to enu -->
 
+        <!-- local pcl sensing -->
+        <include file="$(find local_pcl)/launch/local_sensing.launch"></include>
+
     </group>
 
     <!-- <node type="rviz" name="rviz" pkg="rviz" args="-d $(find mockamap)/config/mockamap.rviz" /> -->
-    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find swiftlet)/config/swiftlet.rviz" output="screen" />
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find swiftlet)/config/swiftlet.rviz"
+        output="screen" />
 
-    <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_world" args="0.0 0.0 0.0 0.0 0.0 0.0 1.0 /map /world" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_world"
+        args="0.0 0.0 0.0 0.0 0.0 0.0 1.0 /map /world" />
 
 
     <!-- mockamap -->
     <!-- <include file="$(find swiftlet)/launch/swiftlet_mockamap.launch"></include> -->
     <include file="$(find swiftlet)/launch/map_gen.launch"></include>
-
-    <!-- lidar sim -->
-    <include file="$(find swiftlet)/launch/swiftlet_lidar_sim.launch"></include>
 
 </launch>
