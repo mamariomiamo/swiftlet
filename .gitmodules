@@ -17,10 +17,6 @@
 [submodule "planner/quadrotor_msgs"]
 	path = planner/quadrotor_msgs
 	url = git@github.com:mamariomiamo/quadrotor_msgs.git
-[submodule "planner/trajectory_publisher"]
-	path = planner/trajectory_publisher
-	url = git@github.com:mamariomiamo/trajectory_publisher.git
-	branch = main
 [submodule "sim_tools/map_gen"]
 	path = sim_tools/map_gen
 	url = git@github.com:mamariomiamo/map_gen.git
