@@ -9,8 +9,9 @@ namespace PX4FSM
         nh_.param<double>("takeoff_height", takeoff_height_, 1.0);
 
         takeoff_flag_ = false;
+        traj_sp_received_ = false;
 
-        uav_task_state_ = UavTaskState::kIdle;
+        uav_task_state_ = UavTaskState::kManualCtrl;
 
         // subscriber
         uav_state_sub_ = nh_.subscribe<mavros_msgs::State>("/" + uav_id_ + "/mavros/state", 10, &PX4FSM::UavStateCallback, this);
@@ -19,6 +20,8 @@ namespace PX4FSM
                                                                   &PX4FSM::UavPoseCallback, this);
 
         user_cmd_sub_ = nh_.subscribe<std_msgs::Byte>("/user_cmd", 1, &PX4FSM::UserCommandCallback, this);
+
+        traj_pt_sub_ = nh_.subscribe<quadrotor_msgs::TrajectoryPoint>("/" + uav_id_ + "/" + "traj_sp_enu", 20, &PX4FSM::TrajectoryPointCallback, this);
 
         // publihser
         uav_pos_sp_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/" + uav_id_ + "/mavros/setpoint_position/local", 10);
@@ -52,7 +55,8 @@ namespace PX4FSM
         case UserCommand::kTakeOff:
         {
             ROS_INFO("TAKEOFF command received!");
-            ChangeTaskState(UavTaskState::kAutoTakeOff);
+            // ChangeTaskState(UavTaskState::kAutoTakeOff);
+            user_cmd_ = UserCommand::kTakeOff;
 
             takeoff_position_ = uav_pose_.pose.position;
             takeoff_position_.z += takeoff_height_;
@@ -62,18 +66,17 @@ namespace PX4FSM
             if (SetOffboardAndArm())
             {
                 fsm_timer_.start();
-                takeoff_flag_ = true;
             }
             break;
         }
         case UserCommand::kMission:
         {
-            uav_task_state_ = UavTaskState::kAutoHover;
+            user_cmd_ = UserCommand::kMission;
             break;
         }
         case UserCommand::kLand:
         {
-            uav_task_state_ = UavTaskState::kAutoLand;
+            user_cmd_ = UserCommand::kLand;
             break;
         }
         default:
@@ -81,12 +84,58 @@ namespace PX4FSM
         }
     }
 
+    void PX4FSM::TrajectoryPointCallback(const quadrotor_msgs::TrajectoryPoint::ConstPtr &traj_pt)
+    {
+        traj_sp_enu_ = *traj_pt;
+        traj_sp_received_ = true;
+    }
+
+    /*
+            Finite State Machine
+
+              system start
+                    |
+                    |
+                    v
+                MANUAL_CTRL 
+                           \                 
+                            \                
+                             > AUTO_TAKEOFF  
+                               /             
+                              /              
+                             /               
+                            /                
+                AUTO_HOVER <                 
+                  ^   |  \  \                
+                  |   |   \  \               
+                  |	  |    > AUTO_LAND
+                  |   |
+                  |   v
+                 CMD_CTRL
+
+    */
     void PX4FSM::FSMTimerCallback(const ros::TimerEvent &)
     {
         switch (uav_task_state_)
         {
-        case UavTaskState::kIdle:
+        case UavTaskState::kManualCtrl:
         {
+            switch (user_cmd_)
+            {
+            case UserCommand::kTakeOff:
+            {
+                if (!takeoff_flag_)
+                {
+                    ChangeTaskState(UavTaskState::kAutoTakeOff);
+                    takeoff_flag_ = true;
+                }
+                break;
+            }
+
+            default:
+                break;
+            }
+
             break;
         }
 
@@ -113,11 +162,43 @@ namespace PX4FSM
             pos_sp_.position = hover_position_;
             pos_sp_.yaw = hover_yaw_;
             SendPositionTarget(pos_sp_, CommandType::kPositionOnly);
-            break;
+
+            switch (user_cmd_)
+            {
+
+            case UserCommand::kMission:
+            {
+                ChangeTaskState(UavTaskState::kCmdCtrl);
+                break;
+            }
+
+            case UserCommand::kLand:
+            {
+                ChangeTaskState(UavTaskState::kAutoLand);
+                break;
+            }
+
+            default:
+                break;
+            }
         }
 
         case UavTaskState::kCmdCtrl:
         {
+            if (traj_sp_received_)
+            {
+                pos_sp_.header.stamp = ros::Time::now();
+                pos_sp_.position = px4fsm_helper::GeoVect2Point(traj_sp_enu_.position);
+                pos_sp_.velocity = traj_sp_enu_.velocity;
+                pos_sp_.acceleration_or_force = traj_sp_enu_.acceleration;
+                pos_sp_.yaw = traj_sp_enu_.heading;
+                SendPositionTarget(pos_sp_, CommandType::kPVA);
+                traj_sp_received_ = false;
+            }
+            else
+            {
+            }
+
             break;
         }
 

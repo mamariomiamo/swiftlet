@@ -39,6 +39,14 @@ namespace px4fsm_helper
         return euler;
     }
 
+    geometry_msgs::Point GeoVect2Point(const geometry_msgs::Vector3 &vect)
+    {
+        geometry_msgs::Point ret;
+        ret.x = vect.x;
+        ret.y = vect.y;
+        ret.z = vect.z;
+    }
+
     double GetYawFromQuat(const geometry_msgs::Quaternion &quat)
     {
         Eigen::Vector3d euler;
