@@ -97,21 +97,21 @@ namespace PX4FSM
                     |
                     |
                     v
-                MANUAL_CTRL 
-                           \                 
-                            \                
-                             > AUTO_TAKEOFF  
-                               /             
-                              /              
-                             /               
-                            /                
-                AUTO_HOVER <                 
-                  ^   |  \  \                
-                  |   |   \  \               
-                  |	  |    > AUTO_LAND
+                MANUAL_CTRL
+                           \
+                            \
+                             > AUTO_TAKEOFF  (can be overwritten by rc manual mode)
+                               /
+                              /
+                             /
+                            /
+                AUTO_HOVER <  (can be overwritten by rc manual mode)
+                  ^   |  \  \
+                  |   |   \  \
+                  |	  |    > AUTO_LAND (can be overwritten by rc manual mode)
                   |   |
                   |   v
-                 CMD_CTRL
+                 CMD_CTRL     (can be overwritten by rc manual mode)
 
     */
     void PX4FSM::FSMTimerCallback(const ros::TimerEvent &)
@@ -149,6 +149,7 @@ namespace PX4FSM
             if (TakeoffComplete(uav_pose_.pose.position, takeoff_position_))
             {
                 ChangeTaskState(UavTaskState::kAutoHover);
+                std::cout << "ajahahahahahahahahahaha\n";
                 hover_position_ = takeoff_position_;
                 hover_yaw_ = takeoff_yaw_;
             }
@@ -197,6 +198,10 @@ namespace PX4FSM
             }
             else
             {
+                // traj_sp not received OR finished sending traj_sp, change to AutoHover
+                ChangeTaskState(UavTaskState::kAutoHover);
+                hover_position_ = uav_pose_.pose.position;
+                hover_yaw_ = px4fsm_helper::GetYawFromQuat(uav_pose_.pose.orientation);
             }
 
             break;
@@ -332,9 +337,9 @@ namespace PX4FSM
         std::string ret;
         switch (task_state)
         {
-        case UavTaskState::kIdle:
+        case UavTaskState::kManualCtrl:
         {
-            ret = "Idle";
+            ret = "ManualCtrl";
             break;
         }
 

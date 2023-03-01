@@ -30,6 +30,8 @@
 
 namespace PX4FSM
 {
+    // command sent by user
+    // fsm to check if current task state can be changed to follow user command
     enum UserCommand
     {
         kTakeOff,
